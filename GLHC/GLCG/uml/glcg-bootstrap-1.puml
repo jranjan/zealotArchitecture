@@ -1,0 +1,138 @@
+@startuml
+
+
+skinparam sequence {
+    TitleFontSize 36
+    TitleFontName Tahoma
+    TitleFontColor DarkBlue
+
+
+	ArrowColor DeepSkyBlue
+	ActorBorderColor DeepSkyBlue
+	LifeLineBorderColor blue
+	LifeLineBackgroundColor #A9DCDF
+
+	ParticipantBorderColor DeepSkyBlue
+	ParticipantBackgroundColor DodgerBlue
+	ParticipantFontName Impact
+	ParticipantFontSize 20
+	ParticipantFontColor #A9DCDF
+
+	ActorBackgroundColor aqua
+	ActorFontColor DeepSkyBlue
+	ActorFontSize 17
+	ActorFontName Aapex
+}
+
+
+header (C) Copyright 2019
+footer author: Jyoti Ranjan
+
+    |||
+    |||
+    |||
+
+actor Rollie
+note left of Rollie
+    The sequence diagram captures
+    the workflow (or algorithm)
+    to bootstrap the GLCG. In this
+    workflow, vCenter is deployed
+    in non-HA mode on independent
+    ESXi host.
+
+    The very minute details of
+    installation of GUI application
+    is not too detailed to avoid
+    cluttering the sequence diagram.
+    Also, it is very obvious from
+    UI workflow.
+end note
+
+box "Seed machine" #LightGrey
+    participant Client
+end box
+
+box "Mnagement components" #LightBlue
+    participant "Deployment Host"
+    participant VCSA
+    participant "Deployment Manager VM"
+    participant "Deployment App"
+end box
+
+box "OmniStack components" #LightGreen
+    participant "OmniStack Host"
+end box
+
+group Preparing deployment node
+        |||
+    Rollie -> "Deployment Host": Bootstrap the host
+    Rollie -> "Deployment Host": Create RAID 10 lun for datastore
+    Rollie -> "Deployment Host": Install ESXi
+        |||
+end group
+
+newpage
+
+group Deploying management software(s)
+        |||
+    Rollie -> Client: Download VCSA OVA
+    Rollie -> Client: Run it
+    Rollie -> Client: Follow deployment steps
+    Rollie -> Rollie: Note down VCSA url
+        |||
+    Rollie -> Client: Login to browser
+    Rollie -> "Deployment Manager VM": Create VM (windows 2012)
+    Rollie -> "Deployment Manager VM": Login (if you haven't)
+    Rollie -> "Deployment Manager VM": Install Arbiter
+        |||
+    Rollie -> "Deployment Manager VM": Login (if you haven't)
+    Rollie -> "Deployment Manager VM": Download bits for deployment apps
+    Rollie -> "Deployment Manager VM": Run installation steps
+    Rollie -> "Deployment App": Ensure that app is installed correctly
+        |||
+    Rollie -> "Deployment Manager VM": Login (if you haven't)
+    Rollie -> "Deployment Manager VM": Download the vSphere web-plugin
+    Rollie -> "Deployment Manager VM": Install web-plugin
+    Rollie -> "Deployment Manager VM": Restart VMware "vsphere-ui" service
+        |||
+    Rollie -> Rollie: Verify deployment environment
+        |||
+end
+
+newpage
+
+group Creating OmniStack cluster
+        |||
+    loop for every GLCG host
+        Rollie -> "OmniStack Host": Power on
+        Rollie -> "OmniStack Host": Assign static IP address
+        Rollie -> Rollie: Note down IP
+    end
+        |||
+    Rollie -> "Deployment Manager VM": Login (if you haven't)
+    Rollie -> "Deployment Manager VM": Open Deployment App
+    activate "Deployment App"
+        Rollie -> "Deployment App": Create SimpliVity federation
+        Rollie -> "Deployment App": Feed Arbiter IP
+        Rollie -> "Deployment App": Scan OmniStack hosts
+        Rollie -> "Deployment App": Configure federation
+        Rollie -> "Deployment App": Configure network
+        Rollie -> "Deployment App": Configure NTP
+        Rollie -> "Deployment App": Run tests
+    deactivate "Deployment App"
+        |||
+end group
+
+newpage
+
+group Preparing OmniStack cluster for consumption
+        |||
+   Rollie -> "Deployment Manager VM": Login (if you haven't)
+   Rollie -> "Deployment Manager VM": Open vCenter
+   Rollie -> "Deployment Manager VM": Create datastore
+   Rollie -> "Deployment Manager VM": Create backup policy (if desired)
+        |||
+end group
+
+@enduml
