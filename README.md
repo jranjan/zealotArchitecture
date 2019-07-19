@@ -10,4 +10,5 @@ This is meant for internal usage and exclusive consumption by [Jyoti Ranjan](jra
 
 * [GLHC](GLHC)
 * [High availability](high-availability)
+* [VMware](VMware)
 
