@@ -32,106 +32,128 @@ footer author: Jyoti Ranjan
     |||
     |||
 
-actor Rollie
-note left of Rollie
-    The sequence diagram captures
-    the workflow (or algorithm)
-    to bootstrap the GLCG. In this
-    workflow, vCenter is deployed
-    in non-HA mode on independent
-    ESXi host.
+actor "GLHC Admin"
+note over "GLHC Admin"
+    The sequence diagram captures the workflow (or algorithm) 
+    to bootstrap the GLCG. In this workflow, vCenter is 
+    deployed in non-HA mode on independent ESXi host.
 
-    The very minute details of
-    installation of GUI application
-    is not too detailed to avoid
-    cluttering the sequence diagram.
-    Also, it is very obvious from
-    UI workflow.
+    The very minute details of installation of GUI application 
+    is not too detailed to avoid cluttering the sequence diagram. 
+    The scope of the diagram is to define the workflow for high 
+    level design. For e.g. low level details of how to create
+    RAID 10 lun using hpssacli or REDIS client or OneView in 
+    case of Synergy is not covered.
 end note
 
 box "Seed machine" #LightGrey
     participant Client
 end box
 
-box "Mnagement components" #LightBlue
+box "Management components" #LightBlue
     participant "Deployment Host"
     participant VCSA
     participant "Deployment Manager VM"
-    participant "Deployment App"
+    participant "Deployment Manager"
 end box
 
 box "OmniStack components" #LightGreen
     participant "OmniStack Host"
 end box
 
+note over Client
+    client is either a laptop or some machine to connect
+    to ESXi host so that ESXi host can be configured and
+    OS can be installed. The below workflow can be
+    automated. The below mentioned workflow can be automated 
+    using scripting languages.
+end note
+
 group Preparing deployment node
         |||
-    Rollie -> "Deployment Host": Bootstrap the host
-    Rollie -> "Deployment Host": Create RAID 10 lun for datastore
-    Rollie -> "Deployment Host": Install ESXi
+    "GLHC Admin" -> Client: Login
+    "GLHC Admin" -> "Deployment Host": Power on the server
+    "GLHC Admin" -> "Deployment Host": Create RAID lun
+    "GLHC Admin" -> "Deployment Host": Install ESXi
         |||
 end group
 
+
 newpage
+
+note over Client
+    The below mentioned
+    workflow can be automated using
+    scripting languages.
+end note
 
 group Deploying management software(s)
         |||
-    Rollie -> Client: Download VCSA OVA
-    Rollie -> Client: Run it
-    Rollie -> Client: Follow deployment steps
-    Rollie -> Rollie: Note down VCSA url
+    "GLHC Admin" -> Client: Login
+    "GLHC Admin" -> Client: Download VCSA OVA
+    "GLHC Admin" -> "Deployment Host": Create VCSA
+    "GLHC Admin" -> "GLHC Admin": Note down VCSA url
         |||
-    Rollie -> Client: Login to browser
-    Rollie -> "Deployment Manager VM": Create VM (windows 2012)
-    Rollie -> "Deployment Manager VM": Login (if you haven't)
-    Rollie -> "Deployment Manager VM": Install Arbiter
+    "GLHC Admin" -> "Deployment Host": Create "Deployment Manager VM"
+    "GLHC Admin" -> "Deployment Manager VM": Run arbiter's msi installer
+    "GLHC Admin" -> "Deployment Manager VM": Install Arbiter
         |||
-    Rollie -> "Deployment Manager VM": Login (if you haven't)
-    Rollie -> "Deployment Manager VM": Download bits for deployment apps
-    Rollie -> "Deployment Manager VM": Run installation steps
-    Rollie -> "Deployment App": Ensure that app is installed correctly
+    "GLHC Admin" -> "Deployment Manager VM": Download deployment manager's msi
+    "GLHC Admin" -> "GLHC Admin": Prepare user input in yaml file
+    "GLHC Admin" -> "Deployment Manager VM": Run jar file with user inputs
+    "GLHC Admin" -> "Deployment Manager": Ensure installation is correct
         |||
-    Rollie -> "Deployment Manager VM": Login (if you haven't)
-    Rollie -> "Deployment Manager VM": Download the vSphere web-plugin
-    Rollie -> "Deployment Manager VM": Install web-plugin
-    Rollie -> "Deployment Manager VM": Restart VMware "vsphere-ui" service
+    "GLHC Admin" -> "Deployment Manager VM": Download the vSphere web-plugin
+    "GLHC Admin" -> "Deployment Manager VM": Install web-plugin
+    "GLHC Admin" -> "Deployment Manager VM": Restart VMware "vsphere-ui" service
         |||
-    Rollie -> Rollie: Verify deployment environment
+    "GLHC Admin" -> "GLHC Admin": Verify deployment environment
         |||
 end
 
 newpage
 
+
+note over "GLHC Admin"
+    The below mentioned workflow can be automated using
+    scripting languages.
+end note
+
+
 group Creating OmniStack cluster
         |||
     loop for every GLCG host
-        Rollie -> "OmniStack Host": Power on
-        Rollie -> "OmniStack Host": Assign static IP address
-        Rollie -> Rollie: Note down IP
+        "GLHC Admin" -> "OmniStack Host": Power on
+        "GLHC Admin" -> "OmniStack Host": Assign static IP address
+        "GLHC Admin" -> "GLHC Admin": Note down IP
     end
         |||
-    Rollie -> "Deployment Manager VM": Login (if you haven't)
-    Rollie -> "Deployment Manager VM": Open Deployment App
-    activate "Deployment App"
-        Rollie -> "Deployment App": Create SimpliVity federation
-        Rollie -> "Deployment App": Feed Arbiter IP
-        Rollie -> "Deployment App": Scan OmniStack hosts
-        Rollie -> "Deployment App": Configure federation
-        Rollie -> "Deployment App": Configure network
-        Rollie -> "Deployment App": Configure NTP
-        Rollie -> "Deployment App": Run tests
-    deactivate "Deployment App"
+    "GLHC Admin" -> "Deployment Manager VM": Login (if you haven't)
+    "GLHC Admin" -> "Deployment Manager VM": Open "Deployment Manager"
+    activate "Deployment Manager"
+        "GLHC Admin" -> "Deployment Manager": Create SimpliVity federation
+        "GLHC Admin" -> "Deployment Manager": Feed Arbiter IP
+        "GLHC Admin" -> "Deployment Manager": Scan OmniStack hosts
+        "GLHC Admin" -> "Deployment Manager": Configure federation
+        "GLHC Admin" -> "Deployment Manager": Configure network
+        "GLHC Admin" -> "Deployment Manager": Configure NTP
+        "GLHC Admin" -> "Deployment Manager": Run tests
+    deactivate "Deployment Manager"
         |||
 end group
 
 newpage
 
+note over "Deployment Manager VM"
+    The below mentioned workflow can be automated using
+    scripting languages.
+end note
+
 group Preparing OmniStack cluster for consumption
         |||
-   Rollie -> "Deployment Manager VM": Login (if you haven't)
-   Rollie -> "Deployment Manager VM": Open vCenter
-   Rollie -> "Deployment Manager VM": Create datastore
-   Rollie -> "Deployment Manager VM": Create backup policy (if desired)
+   "GLHC Admin" -> "Deployment Manager VM": Open vCenter
+   "GLHC Admin" -> "Deployment Manager VM": Create datastore
+   "GLHC Admin" -> "Deployment Manager VM": Create backup policy (if desired)
         |||
 end group
 
