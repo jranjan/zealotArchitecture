@@ -74,6 +74,7 @@ group Preparing deployment node
     "GLHC Admin" -> Client: Login
     "GLHC Admin" -> "Deployment Host": Power on the server
     "GLHC Admin" -> "Deployment Host": Create RAID lun
+    "GLHC Admin" -> "Deployment Host": Mount ISO to ESXi
     "GLHC Admin" -> "Deployment Host": Install ESXi
         |||
 end group
@@ -91,21 +92,41 @@ group Deploying management software(s)
         |||
     "GLHC Admin" -> Client: Login
     "GLHC Admin" -> Client: Download VCSA OVA
-    "GLHC Admin" -> "Deployment Host": Create VCSA
+    "GLHC Admin" -> "Deployment Host": Request to create VCSA
+    "GLHC Admin" -> VCSA: ssh to VCSA to verify its installation
     "GLHC Admin" -> "GLHC Admin": Note down VCSA url
         |||
-    "GLHC Admin" -> "Deployment Host": Create "Deployment Manager VM"
-    "GLHC Admin" -> "Deployment Manager VM": Run arbiter's msi installer
+    "GLHC Admin" -> "Deployment Host": Request to create "Deployment Manager VM"
+    note over "Deployment Manager VM"
+       As we are going to run windows installer, we need to
+       do remote login to "Deployment Manager VM" from
+       Client and run script to install arbiter.
+    end note
+    "GLHC Admin" -> "Deployment Manager VM": Login
+    "GLHC Admin" -> "Deployment Manager VM": Run arbiter's msi installer inside VM
     "GLHC Admin" -> "Deployment Manager VM": Install Arbiter
         |||
+    note over "Deployment Manager VM"
+       Here we are going to run JAR file with parameters
+       captured in yaml file. For this one needs to remote
+       login to "Deployment Manager VM" and run the jar
+       command.
+    end note
+    "GLHC Admin" -> "Deployment Manager VM": Login
     "GLHC Admin" -> "Deployment Manager VM": Download deployment manager's msi
     "GLHC Admin" -> "GLHC Admin": Prepare user input in yaml file
     "GLHC Admin" -> "Deployment Manager VM": Run jar file with user inputs
     "GLHC Admin" -> "Deployment Manager": Ensure installation is correct
         |||
-    "GLHC Admin" -> "Deployment Manager VM": Download the vSphere web-plugin
-    "GLHC Admin" -> "Deployment Manager VM": Install web-plugin
-    "GLHC Admin" -> "Deployment Manager VM": Restart VMware "vsphere-ui" service
+    note over "Deployment Manager VM"
+       Here as well, one needs to remote login
+       to VCSA and install the web-plugin which is like
+       a running some executables.
+    end note
+    "GLHC Admin" -> VCSA: Login
+    "GLHC Admin" -> VCSA: Download the vSphere web-plugin
+    "GLHC Admin" -> VCSA: Install web-plugin
+    "GLHC Admin" -> VCSA: Restart VMware "vsphere-ui" service
         |||
     "GLHC Admin" -> "GLHC Admin": Verify deployment environment
         |||
@@ -122,23 +143,22 @@ end note
 
 group Creating OmniStack cluster
         |||
+    "GLHC Admin" -> Client: Login
     loop for every GLCG host
         "GLHC Admin" -> "OmniStack Host": Power on
         "GLHC Admin" -> "OmniStack Host": Assign static IP address
         "GLHC Admin" -> "GLHC Admin": Note down IP
     end
         |||
-    "GLHC Admin" -> "Deployment Manager VM": Login (if you haven't)
+    "GLHC Admin" -> "Deployment Manager VM": Login
     "GLHC Admin" -> "Deployment Manager VM": Open "Deployment Manager"
-    activate "Deployment Manager"
-        "GLHC Admin" -> "Deployment Manager": Create SimpliVity federation
-        "GLHC Admin" -> "Deployment Manager": Feed Arbiter IP
-        "GLHC Admin" -> "Deployment Manager": Scan OmniStack hosts
-        "GLHC Admin" -> "Deployment Manager": Configure federation
-        "GLHC Admin" -> "Deployment Manager": Configure network
-        "GLHC Admin" -> "Deployment Manager": Configure NTP
-        "GLHC Admin" -> "Deployment Manager": Run tests
-    deactivate "Deployment Manager"
+    "GLHC Admin" -> "Deployment Manager": Create SimpliVity federation
+    "GLHC Admin" -> "Deployment Manager": Feed Arbiter IP
+    "GLHC Admin" -> "Deployment Manager": Scan OmniStack hosts
+    "GLHC Admin" -> "Deployment Manager": Configure federation
+    "GLHC Admin" -> "Deployment Manager": Configure network
+    "GLHC Admin" -> "Deployment Manager": Configure NTP
+    "GLHC Admin" -> "Deployment Manager": Run tests
         |||
 end group
 
@@ -151,6 +171,7 @@ end note
 
 group Preparing OmniStack cluster for consumption
         |||
+   "GLHC Admin" -> Client: Login
    "GLHC Admin" -> "Deployment Manager VM": Open vCenter
    "GLHC Admin" -> "Deployment Manager VM": Create datastore
    "GLHC Admin" -> "Deployment Manager VM": Create backup policy (if desired)
