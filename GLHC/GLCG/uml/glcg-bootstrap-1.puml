@@ -59,6 +59,7 @@ end box
 
 box "OmniStack components" #LightGreen
     participant "OmniStack Host"
+    participant "OmniStack Cluster"
 end box
 
 note over Client
@@ -69,13 +70,13 @@ note over Client
     using scripting languages.
 end note
 
-group Preparing deployment node
+group Preparing deployment host
         |||
     "GLHC Admin" -> Client: Login
-    "GLHC Admin" -> "Deployment Host": Power on the server
-    "GLHC Admin" -> "Deployment Host": Create RAID lun
-    "GLHC Admin" -> "Deployment Host": Mount ISO to ESXi
-    "GLHC Admin" -> "Deployment Host": Install ESXi
+    "Client" -> "Deployment Host": Power on the server
+    "Client" -> "Deployment Host": Create RAID lun
+    "Client" -> "Deployment Host": Mount ISO to ESXi
+    "Client" -> "Deployment Host": Install ESXi host
         |||
 end group
 
@@ -90,45 +91,77 @@ end note
 
 group Deploying management software(s)
         |||
-    "GLHC Admin" -> Client: Login
-    "GLHC Admin" -> Client: Download VCSA OVA
-    "GLHC Admin" -> "Deployment Host": Request to create VCSA
-    "GLHC Admin" -> VCSA: ssh to VCSA to verify its installation
-    "GLHC Admin" -> "GLHC Admin": Note down VCSA url
+    note over "GLHC Admin"
+        It is assumed that admin is
+        still logged into client mode
+        to preform steps.
+    end note
+    "Client" -> Client: Download VCSA OVA
+    "Client" -> "Deployment Host": Create VCSA appliance
+    "Deployment Host" -> VCSA: VCSA is created
+    "Client" -> VCSA: ssh to VCSA to verify its installation
+    "Client" -> "Client": Note VCSA url
         |||
-    "GLHC Admin" -> "Deployment Host": Request to create "Deployment Manager VM"
+    note over Client
+        It is worth to mention that "Deployment Manager VM"
+        is a Windows 2012 R2 VM. Customer needs to be provided
+        Windows OVA through offline or online mechanism. It
+        needs to be decided.
+    end note
+    "Client" -> "Client": Download windows OVA
+    "Client" -> "Deployment Host": Create "Deployment Manager VM"
+    "Deployment Host" -> "Deployment Manager VM": "Deployment Manager VM" is created
     note over "Deployment Manager VM"
-       As we are going to run windows installer, we need to
-       do remote login to "Deployment Manager VM" from
+       It is assumed that admin is still logged into client mode
+       to preform steps.  As we are going to run windows installer,
+       we need to do remote login to "Deployment Manager VM" from
        Client and run script to install arbiter.
     end note
-    "GLHC Admin" -> "Deployment Manager VM": Login
-    "GLHC Admin" -> "Deployment Manager VM": Run arbiter's msi installer inside VM
-    "GLHC Admin" -> "Deployment Manager VM": Install Arbiter
+    "Client" -> "Client": Download Arbiter's msi
+    "Client" -> "Deployment Manager VM": Upload Arbiter's msi
+    "Client" -> "Deployment Manager VM": Login
+    "Deployment Manager VM" -> "Deployment Manager VM": Run arbiter's msi installer to install Arbiter
         |||
     note over "Deployment Manager VM"
+       It is assumed that admin is still logged into client mode
+       to preform steps.
+
        Here we are going to run JAR file with parameters
        captured in yaml file. For this one needs to remote
        login to "Deployment Manager VM" and run the jar
        command.
     end note
-    "GLHC Admin" -> "Deployment Manager VM": Login
-    "GLHC Admin" -> "Deployment Manager VM": Download deployment manager's msi
-    "GLHC Admin" -> "GLHC Admin": Prepare user input in yaml file
-    "GLHC Admin" -> "Deployment Manager VM": Run jar file with user inputs
-    "GLHC Admin" -> "Deployment Manager": Ensure installation is correct
-        |||
-    note over "Deployment Manager VM"
-       Here as well, one needs to remote login
-       to VCSA and install the web-plugin which is like
-       a running some executables.
+    "Client" -> "Client": Download deployment manager's msi
+    "Client" -> "Client": Prepare user input for OmniStack cluster configuration
+    note over "Client"
+        User input file contains set of parameter
+        which is needed for OmniStack cluster
+        creation like subnet to which OmniStack
+        host needs to be discovered etc. For details,
+        refer deployment guide.
     end note
-    "GLHC Admin" -> VCSA: Login
-    "GLHC Admin" -> VCSA: Download the vSphere web-plugin
-    "GLHC Admin" -> VCSA: Install web-plugin
-    "GLHC Admin" -> VCSA: Restart VMware "vsphere-ui" service
+    "Client" -> "Deployment Manager VM": Upload deployment manager's msi
+    "Client" -> "Deployment Manager VM": Upload user input file
+    "Client" -> "Deployment Manager VM": Login
+    "Deployment Manager VM" -> "Deployment Manager VM": Run installer with input file
+    "Deployment Manager VM" -> "Deployment Manager": Ensure installation is correct
         |||
-    "GLHC Admin" -> "GLHC Admin": Verify deployment environment
+    note over "GLHC Admin"
+       It is assumed that admin is still logged into client mode
+       to preform steps. As we are going to install windows plugin
+       for vSphere, we can do same from Client as well.
+    end note
+    "Client" -> "Client": Download vSphere web-plugin installer
+    "Client" -> VCSA: Upload to VCSA
+    "Client" -> VCSA: Login
+    VCSA -> VCSA: Install web-plugin
+    VCSA -> VCSA: Restart VMware "vsphere-ui" service
+        |||
+    "Client" -> "Client": Verify overall deployment environment
+    note over "Client"
+        At this point of time, vCenter and Arbiter should
+        be up and running.
+    end note
         |||
 end
 
@@ -143,22 +176,30 @@ end note
 
 group Creating OmniStack cluster
         |||
-    "GLHC Admin" -> Client: Login
+    note over Client
+        It is worth to mention that "Deployment Manager VM"
+        is a Windows 2012 R2 VM. Customer needs to be provided
+        Windows OVA through offline or online mechanism. It
+        needs to be decided.
+    end note
     loop for every GLCG host
-        "GLHC Admin" -> "OmniStack Host": Power on
-        "GLHC Admin" -> "OmniStack Host": Assign static IP address
-        "GLHC Admin" -> "GLHC Admin": Note down IP
+        "Client" -> "OmniStack Host": Power on
+        "Client" -> "OmniStack Host": Assign static IP address
+        "Client" -> "Client": Note down IP
     end
         |||
-    "GLHC Admin" -> "Deployment Manager VM": Login
-    "GLHC Admin" -> "Deployment Manager VM": Open "Deployment Manager"
-    "GLHC Admin" -> "Deployment Manager": Create SimpliVity federation
-    "GLHC Admin" -> "Deployment Manager": Feed Arbiter IP
-    "GLHC Admin" -> "Deployment Manager": Scan OmniStack hosts
-    "GLHC Admin" -> "Deployment Manager": Configure federation
-    "GLHC Admin" -> "Deployment Manager": Configure network
-    "GLHC Admin" -> "Deployment Manager": Configure NTP
-    "GLHC Admin" -> "Deployment Manager": Run tests
+    "Client" -> "Deployment Manager VM": Login
+    "Deployment Manager VM" -> "Deployment Manager VM": Open "Deployment Manager"
+    "Deployment Manager VM" -> "Deployment Manager": Application is launched
+    "Deployment Manager" -> "Deployment Manager": Create OmniStack cluster
+    "Deployment Manager" -> "OmniStack Cluster": system initiates the process
+    "Deployment Manager" -> "Deployment Manager": Feed Arbiter IP
+    "Deployment Manager" -> "Deployment Manager": Scan OmniStack hosts
+    "Deployment Manager" -> "Deployment Manager": Configure OmniStack
+    "Deployment Manager" -> "OmniStack Cluster": system initiates the process
+    "Deployment Manager" -> "Deployment Manager": Configure network
+    "Deployment Manager" -> "Deployment Manager": Configure NTP
+    "Deployment Manager" -> "Deployment Manager": Run tests
         |||
 end group
 
@@ -171,10 +212,16 @@ end note
 
 group Preparing OmniStack cluster for consumption
         |||
-   "GLHC Admin" -> Client: Login
-   "GLHC Admin" -> "Deployment Manager VM": Open vCenter
-   "GLHC Admin" -> "Deployment Manager VM": Create datastore
-   "GLHC Admin" -> "Deployment Manager VM": Create backup policy (if desired)
+   note over "GLHC Admin"
+        It is assumed that admin is
+        still logged into client mode
+        to preform steps.
+   end note
+   "Client" -> VCSA: Open vCenter
+   VCSA -> VCSA: Create datastore
+   VCSA -> "OmniStack Cluster":
+   VCSA-> VCSA: Create backup policy (if desired)
+   VCSA -> "OmniStack Cluster":
         |||
 end group
 
