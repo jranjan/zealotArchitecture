@@ -34,7 +34,7 @@ footer author: Jyoti Ranjan
 
 actor "GLHC Admin"
 note over "GLHC Admin"
-    The sequence diagram captures the workflow (or algorithm) 
+    The sequence diagram captures the workflow (or algorithm)
     to deploy the Green Lake Cloud Gateway (GLCG) using
     HPE SimpliVity. In this workflow, vCenter is
     deployed in non-HA mode on independent ESXi host.
@@ -62,6 +62,7 @@ box "Management components" #LightBlue
     participant VCSA
     participant "Arbiter VM"
     participant "Deployment Manager"
+    participant "NEW VCSA"
 end box
 
 box "OmniStack components" #LightGreen
@@ -73,7 +74,7 @@ note over Client
     client is either a laptop or some machine to connect
     to ESXi host so that ESXi host can be configured and
     OS can be installed. The below workflow can be
-    automated. The below mentioned workflow can be automated 
+    automated. The below mentioned workflow can be automated
     using scripting languages.
 end note
 
@@ -223,6 +224,35 @@ group Preparing OmniStack cluster for consumption
    VCSA -> "OmniStack Cluster":
    VCSA-> VCSA: Create backup policy (if desired)
    VCSA -> "OmniStack Cluster":
+        |||
+end group
+
+newpage
+
+group Configuring VCSA in High Availability mode
+        |||
+   note over "GLHC Admin"
+        It is assumed that admin is
+        still logged into client mode
+        to preform steps.
+   end note
+   "Client" -> "OmniStack Cluster": Using Cli create 'NEW VCSA'
+   "OmniStack Cluster" -> "NEW VCSA": Creates VCSA appliance hosted in SimpliVity cluster
+   "Client" -> "NEW VCSA": Login
+   "Client" -> "NEW VCSA": Re-register OmniStack hosts
+   "Client" -> VCSA: Unregister OmniStack hosts
+   "Client" -> "Deployment Host": Delete VCSA
+   note over "Client"
+        At this point of time, you have discarded old VCSA and
+        new VCSA is configured with HPE SimpliVity cluster and hosts.
+        Note tha new VCSA is running in hypervisor cluster which
+        is enabled with vMotion and is managing the same cluster
+        in which it is hosted.
+
+        The approach gives you ability to have vCenter in HA mode
+        but with one risk of loosing VCSA if entire gateway gets
+        wiped.
+   end note
         |||
 end group
 
