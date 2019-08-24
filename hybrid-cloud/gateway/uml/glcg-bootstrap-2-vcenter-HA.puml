@@ -1,0 +1,259 @@
+@startuml
+
+
+skinparam sequence {
+    TitleFontSize 36
+    TitleFontName Tahoma
+    TitleFontColor DarkBlue
+
+
+	ArrowColor DeepSkyBlue
+	ActorBorderColor DeepSkyBlue
+	LifeLineBorderColor blue
+	LifeLineBackgroundColor #A9DCDF
+
+	ParticipantBorderColor DeepSkyBlue
+	ParticipantBackgroundColor DodgerBlue
+	ParticipantFontName Impact
+	ParticipantFontSize 20
+	ParticipantFontColor #A9DCDF
+
+	ActorBackgroundColor aqua
+	ActorFontColor DeepSkyBlue
+	ActorFontSize 17
+	ActorFontName Aapex
+}
+
+
+header (C) Copyright 2019
+footer author: Jyoti Ranjan
+
+    |||
+    |||
+    |||
+
+actor "GLHC Admin"
+note over "GLHC Admin"
+    The sequence diagram captures the workflow (or algorithm)
+    to deploy the Green Lake Cloud Gateway (GLCG) using
+    HPE SimpliVity. In this workflow, vCenter is
+    deployed in non-HA mode on independent ESXi host.
+
+    The very minute details of installation of GUI application
+    (if applicable) is not too detailed to avoid cluttering
+    the sequence diagram. The focus is more on usage of API
+    or cli to achieve the job so that automation of workflow
+    can be achieved.
+
+    The scope of the diagram is to define the workflow to bring
+    clarity instead of giving command level details. For e.g.
+    the low level details of how to create RAID 10 lun using
+    hpssacli or REDIS client or OneView in case of Synergy is
+    not covered. One of the reason is various on commands based
+    on server model, software version etc.
+end note
+
+box "Seed machine" #LightGrey
+    participant Client
+end box
+
+box "Management components" #LightBlue
+    participant "Deployment Host"
+    participant VCSA
+    participant "Arbiter VM"
+    participant "Deployment Manager"
+    participant "NEW VCSA"
+end box
+
+box "OmniStack components" #LightGreen
+    participant "OmniStack Host"
+    participant "OmniStack Cluster"
+end box
+
+note over Client
+    client is either a laptop or some machine to connect
+    to ESXi host so that ESXi host can be configured and
+    OS can be installed. The below workflow can be
+    automated. The below mentioned workflow can be automated
+    using scripting languages.
+end note
+
+group Preparing deployment host
+        |||
+    "GLHC Admin" -> Client: Login
+    "Client" -> "Deployment Host": Power on the server
+    "Client" -> "Deployment Host": Create RAID lun
+    "Client" -> "Deployment Host": Mount ISO to ESXi
+    "Client" -> "Deployment Host": Install ESXi host
+        |||
+end group
+
+
+newpage
+
+note over Client
+    The below mentioned
+    workflow can be automated using
+    scripting languages.
+end note
+
+group Deploying management software(s)
+        |||
+    note over "GLHC Admin"
+        It is assumed that admin is
+        still logged into client mode
+        to preform steps.
+    end note
+    "Client" -> Client: Download VCSA OVA
+    "Client" -> "Deployment Host": Create VCSA appliance
+    "Deployment Host" -> VCSA: VCSA is created
+    "Client" -> VCSA: ssh to VCSA to verify its installation
+    "Client" -> "Client": Note VCSA url
+        |||
+    note over Client
+        It is worth to mention that "Arbiter VM"
+        is a Windows 2012 R2 VM. Customer needs to be provided
+        Windows OVA through offline or online mechanism. It
+        needs to be decided.
+    end note
+    "Client" -> "Client": Download windows OVA
+    "Client" -> "Deployment Host": Create "Arbiter VM"
+    "Deployment Host" -> "Arbiter VM": "Arbiter VM" is created
+    note over "Arbiter VM"
+       It is assumed that admin is still logged into client mode
+       to preform steps.  As we are going to run windows installer,
+       we need to do remote login to "Arbiter VM" from
+       Client and run script to install arbiter.
+    end note
+    "Client" -> "Client": Download Arbiter's msi
+    "Client" -> "Arbiter VM": Upload Arbiter's msi
+    "Client" -> "Arbiter VM": Login
+    "Arbiter VM" -> "Arbiter VM": Run arbiter's msi installer to install Arbiter
+        |||
+    note over "Arbiter VM"
+       It is assumed that admin is still logged into client mode
+       to preform steps.
+
+       Here we are going to run JAR file with parameters
+       captured in yaml file. For this one needs to remote
+       login to "Arbiter VM" and run the jar
+       command.
+    end note
+    "Client" -> "Client": Download deployment manager's msi
+    "Client" -> "Client": Prepare user input for OmniStack cluster configuration
+    note over "Client"
+        User input file contains set of parameter
+        which is needed for OmniStack cluster
+        creation like subnet to which OmniStack
+        host needs to be discovered etc. For details,
+        refer deployment guide.
+    end note
+    "Client" -> "Arbiter VM": Upload deployment manager's msi
+    "Client" -> "Arbiter VM": Upload user input file
+    "Client" -> "Arbiter VM": Login
+    "Arbiter VM" -> "Arbiter VM": Run installer with input file
+    "Arbiter VM" -> "Deployment Manager": Ensure installation is correct
+        |||
+    note over "GLHC Admin"
+       It is assumed that admin is still logged into client mode
+       to preform steps. As we are going to install windows plugin
+       for vSphere, we can do same from Client as well.
+    end note
+    "Client" -> "Client": Download vSphere web-plugin installer
+    "Client" -> VCSA: Upload to VCSA
+    "Client" -> VCSA: Login
+    VCSA -> VCSA: Install web-plugin
+    VCSA -> VCSA: Restart VMware "vsphere-ui" service
+        |||
+    "Client" -> "Client": Verify overall deployment environment
+    note over "Client"
+        At this point of time, vCenter and Arbiter should
+        be up and running.
+    end note
+        |||
+end
+
+newpage
+
+
+note over "GLHC Admin"
+    The below mentioned workflow can be automated using
+    scripting languages.
+end note
+
+
+group Creating OmniStack cluster
+        |||
+     loop for every GLCG host
+        "Client" -> "OmniStack Host": Power on
+        "Client" -> "OmniStack Host": Assign static IP address
+        "Client" -> "Client": Note down IP
+    end
+        |||
+    "Client" -> "Arbiter VM": Login
+    "Arbiter VM" -> "Arbiter VM": Open "Deployment Manager"
+    "Arbiter VM" -> "Deployment Manager": Application is launched
+    "Deployment Manager" -> "Deployment Manager": Create OmniStack cluster
+    "Deployment Manager" -> "OmniStack Cluster": system initiates the process
+    "Deployment Manager" -> "Deployment Manager": Feed Arbiter IP
+    "Deployment Manager" -> "Deployment Manager": Scan OmniStack hosts
+    "Deployment Manager" -> "Deployment Manager": Configure OmniStack
+    "Deployment Manager" -> "OmniStack Cluster": system initiates the process
+    "Deployment Manager" -> "Deployment Manager": Configure network
+    "Deployment Manager" -> "Deployment Manager": Configure NTP
+    "Deployment Manager" -> "Deployment Manager": Run tests
+        |||
+end group
+
+newpage
+
+note over "Arbiter VM"
+    The below mentioned workflow can be automated using
+    scripting languages.
+end note
+
+group Preparing OmniStack cluster for consumption
+        |||
+   note over "GLHC Admin"
+        It is assumed that admin is
+        still logged into client mode
+        to preform steps.
+   end note
+   "Client" -> VCSA: Open vCenter
+   VCSA -> VCSA: Create datastore
+   VCSA -> "OmniStack Cluster":
+   VCSA-> VCSA: Create backup policy (if desired)
+   VCSA -> "OmniStack Cluster":
+        |||
+end group
+
+newpage
+
+group Configuring VCSA in High Availability mode
+        |||
+   note over "GLHC Admin"
+        It is assumed that admin is
+        still logged into client mode
+        to preform steps.
+   end note
+   "Client" -> "OmniStack Cluster": Using Cli create 'NEW VCSA'
+   "OmniStack Cluster" -> "NEW VCSA": Creates VCSA appliance hosted in SimpliVity cluster
+   "Client" -> "NEW VCSA": Login
+   "Client" -> "NEW VCSA": Re-register OmniStack hosts
+   "Client" -> VCSA: Unregister OmniStack hosts
+   "Client" -> "Deployment Host": Delete VCSA
+   note over "Client"
+        At this point of time, you have discarded old VCSA and
+        new VCSA is configured with HPE SimpliVity cluster and hosts.
+        Note tha new VCSA is running in hypervisor cluster which
+        is enabled with vMotion and is managing the same cluster
+        in which it is hosted.
+
+        The approach gives you ability to have vCenter in HA mode
+        but with one risk of loosing VCSA if entire gateway gets
+        wiped.
+   end note
+        |||
+end group
+
+@enduml
