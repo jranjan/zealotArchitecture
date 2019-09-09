@@ -1,0 +1,47 @@
+@startuml
+
+@startuml
+skinparam backgroundColor #EEEBDC
+skinparam handwritten true
+
+skinparam sequence {
+	ArrowColor DeepSkyBlue
+	ActorBorderColor DeepSkyBlue
+	LifeLineBorderColor blue
+	LifeLineBackgroundColor #A9DCDF
+
+	ParticipantBorderColor DeepSkyBlue
+	ParticipantBackgroundColor DodgerBlue
+	ParticipantFontName Impact
+	ParticipantFontSize 17
+	ParticipantFontColor #A9DCDF
+
+	ActorBackgroundColor aqua
+	ActorFontColor DeepSkyBlue
+	ActorFontSize 17
+	ActorFontName Aapex
+}
+
+participant "VSA Proxy"
+note left
+   I am not 100 percent sure of the flow.
+   Does not request go to CommsServe?
+end note
+
+"VSA Proxy" -> vCenter: Locate VM on ESXi host
+"VSA Proxy" -> Hypervisor: Initiate snapshot
+Hypervisor -> Hypervisor: Quiesce VM
+Hypervisor -> Hypervisor: Conducts a software snapshot
+Hypervisor --> "VSA Proxy":
+"VSA Proxy" -> "VSA Proxy": Meatadata of VM is extracted
+"VSA Proxy" -> MediaAgent: Request to do backup
+MediaAgent -> MediaAgent: Run data protection job
+MediaAgent -> BackupStorage: Stores backup data
+MediaAgent -> MediaAgent: Prepares index cache
+MediaAgent -> ContentStore: Index are stored in library
+MediaAgent --> "VSA Proxy"
+"VSA Proxy" -> Hypervisor: Deletes snapshot
+
+
+
+@enduml
