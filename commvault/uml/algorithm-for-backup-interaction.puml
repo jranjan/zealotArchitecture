@@ -32,7 +32,7 @@ CommServe -> Client: Initiates data protection
 Client -> Client: Initiates scan phase to identify data to be protected
 Client -> Client: Generates collect files to be protected
 Client -> CommServe:
-CommServe -> MediaAgent: Request to do backup
+CommServe -> MediaAgent: Request for backup
 MediaAgent -> MediaAgent: Run data protection job
 MediaAgent -> BackupStorage: Stores backup data
 MediaAgent -> MediaAgent: Prepares index cache
