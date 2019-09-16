@@ -30,7 +30,7 @@ participant MediaAgent
 
 note over Hypervisor
     IntelliSnap is Commvault technology.
-    It creates snapsot in primart storage.
+    It creates snapshot in primary storage.
     These snapshots can be mounted directly to
     the MediaAgent and backed up while the
     production server continues to service clients.
@@ -38,29 +38,27 @@ note over Hypervisor
     instantaneously by reverting the snapshot as
     long as the array is fully functional.
 
-    The entire game is of snapshot and how long
-    it is retained.
+    In this case, snapshots are created on primary storage.
+    It is followed by backup copy job to move data from
+    primary storage to backup repository.
 end note
 
+group Snapshot creation phase
+    "VSA Proxy" -> vCenter: Locate VM on ESXi host
+    "VSA Proxy" -> Hypervisor: Initiate snapshot
+    Hypervisor -> VM: Quiesce VM
+    Hypervisor -> Hypervisor: Conducts a software snapshot on primary storage
+    Hypervisor --> "VSA Proxy":
+    MediaAgent -> "Primary storage": Perform hardware snapshot of volume
+    Hypervisor -> Hypervisor: Software snapshot is deleted
+end group
 
-"VSA Proxy" -> vCenter: Locate VM on ESXi host
-"VSA Proxy" -> Hypervisor: Initiate snapshot
-Hypervisor -> VM: Quiesce VM
-Hypervisor -> Hypervisor: Conducts a software snapshot on primary storage
-Hypervisor --> "VSA Proxy":
-"VSA Proxy" -> "Primary storage": Create snapshot copy
-"VSA Proxy" -> "VSA Proxy": Mount snapshot copy to media server
-note over "VSA Proxy"
-    Did you notice creation of snapshot copy
-    and it getting mounted - a core difference
-    from traditional backup. Did you also notice
-    that no data is being trasferred over wire
-    (LAN) to send required data to MediaAgent.
-end note
-"VSA Proxy" -> MediaAgent: Request to do backup
-MediaAgent -> BackupStorage: Stores backup data (in backup storage)
-MediaAgent --> "VSA Proxy"
-"VSA Proxy" -> "VSA Proxy": Unmount snapshot from media server
+group Backup copy phase
+    "VSA Proxy" -> MediaAgent: Runs backup job
+    MediaAgent -> MediaAgent: Mount hardsware snapshot copy to MediaAgent
+    MediaAgent -> "Backup Repository": Copy data (may use replication if configured)
+    "VSA Proxy" -> "VSA Proxy": Unmount snapshot from media server
+end group
 
 
 @enduml

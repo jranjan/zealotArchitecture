@@ -36,12 +36,17 @@ Hypervisor -> Hypervisor: Conducts a software snapshot
 Hypervisor -> "VSA Proxy": Send metadata
 
 note over "VSA Proxy"
+    This mode is preferred if VSA proxy needes to virtualized
+    because of SAN only mode can not be used.
+
     In HotAdd mode, VM is already mounted to ESX host on
-    which proxy is running. The ESX host the proxy is
-    running on must have access to all datastores for
-    the virtual machine. If the virtual machine and
-    the proxy are not on the same host, all datastores
-    must be shared between the hosts.
+    which proxy is running. The ESX host running proxy
+    must have access to all datastores for the virtual
+    machine. If the virtual machine and the proxy are not
+    not on the same host, all datastores must be shared
+    among hosts. In this case, data does not move over
+    LAN and performance is as good as SAN only mode. In
+    this case, backup and data traffic can be separated.
 end note
 
 group HotAdd mode
