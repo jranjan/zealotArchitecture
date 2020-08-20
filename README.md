@@ -11,5 +11,5 @@ This is meant for internal usage and exclusive consumption by [Jyoti Ranjan](jra
 * [GLHC](GLHC)
 * [High availability](high-availability)
 * [VMware](VMware)
-* [AWS architecture](https://docs.google.com/document/d/138M7R2cuAjN7XPzRz__7usq7HsCr0T4KHL1TFiLPRew/edit))
+* [AWS architecture](https://docs.google.com/document/d/138M7R2cuAjN7XPzRz__7usq7HsCr0T4KHL1TFiLPRew/edit)
 
