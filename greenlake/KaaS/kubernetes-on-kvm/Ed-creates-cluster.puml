@@ -1,0 +1,25 @@
+@startuml
+actor Ed
+
+participant "HPE OneSphere UI"
+participant "HPE OneSphere API"
+participant Marketplace
+participant K8sLCM
+participant "PF9 API"
+
+Ed -> "HPE OneSphere UI": Search catalog for kuberentes deployment
+"HPE OneSphere UI" -> "HPE OneSphere API": Provides catalog items
+Ed -> "HPE OneSphere UI": Deploy cluster
+"HPE OneSphere UI" -> "HPE OneSphere API": Request to deploy catalog item
+"HPE OneSphere API" -> Marketplace: Request to deploy cluster
+Marketplace -> Marketplace: Creates pseudo kubernetes zone
+Marketplace -> K8sLCM: Request to create cluster
+K8sLCM -> "PF9 API": Request to create cluster
+K8sLCM -> K8sLCM: Perform post cluster creation operations
+note left
+    Post requisite operations are:
+        - create storage class
+        - deploy LBaaS service
+end note
+
+@enduml

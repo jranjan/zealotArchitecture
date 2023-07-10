@@ -1,0 +1,67 @@
+@startuml
+participant "ESX-LCM"
+participant "vsan-cluster-manager"
+participant "vCenter"
+participant "Host"
+
+"ESX-LCM"->"vsan-cluster-manager": Setup cluster
+
+note right
+Cluster setup and configuration needs access of
+cluster and host API along with choices asked by
+user. The following attributes needs to be
+collected:
+
+1) username and password
+2) certificate
+3) license
+4) vmware storage model
+5) type = {hybrid, flash}
+6) is_compression_enabled
+7) fault_domain_attr
+8) multicast_attr
+9) is_perf_service_enabled
+
+The specific configuration related to fault
+domain support, the enablement of performance
+services and multi-cast support will be
+covered in future.
+
+end note
+
+"vsan-cluster-manager"->"vsan-cluster-manager": Gather VSAN attr(s)
+"vsan-cluster-manager"->vCenter: Get cluster instance
+"vsan-cluster-manager"->vCenter: Apply license
+"vsan-cluster-manager"->vCenter: Get host lists
+
+loop for all hosts
+    "vsan-cluster-manager"->Host: Get host details
+    "vsan-cluster-manager"->"vsan-cluster-manager": Validate network/disk/memory settings
+    loop for all vsan disks of a given host
+        "vsan-cluster-manager"->Host: Update partition
+    end loop
+
+    alt if multicast_attr provided
+        "vsan-cluster-manager"->Host: Apply multicast attributes
+    end
+end loop
+
+alt if fault_domain_attr is provided
+    "vsan-cluster-manager"->vCenter: Configure fault domain
+end
+
+alt if ((is_compression_enabled is true) and (type is flash))
+    "vsan-cluster-manager"->vCenter: Configure compression and de-duplication
+end
+
+"vsan-cluster-manager"->vCenter: Reconfigure VSAN cluster
+
+"vsan-cluster-manager"->"vsan-cluster-manager": Create diskmap
+loop for all disk in diskmap
+    "vsan-cluster-manager"->vCenter: Claim disks
+end loop
+
+alt if is_perf_service_enabled is true
+    "vsan-cluster-manager"->vCenter: Enable performance service
+end
+@enduml

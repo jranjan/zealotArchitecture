@@ -1,0 +1,104 @@
+
+@startuml
+actor Rollie
+
+participant "K8s-LCM"
+participant "HPE OneSphere API"
+participant "PF9 API"
+participant "PF9 UI"
+participant "K8s-API"
+
+Rollie -> "PF9 UI": Browse the authorized hosts to be a part of the cluster
+note left #LightBlue
+    A design decision needs to be takne our cluster will be mapped to which DU.
+    As of now, we are experimenting with master DU but in long run we need to
+    keep following points in mind:
+
+        1) Can we use master DU? It depends. As I hear, we are separting HPE
+           services in separate DU and PF9 services will run in master DU which
+           will have open connection.
+        2) Do we need to create a new DU? It needs to be followed approach (1)
+           does not materalize.
+
+end note
+Rollie -> "PF9 UI": Create cluster
+note right of "PF9 UI"
+  Browse to: Region: master Tenant: service
+  Browse to: Kubernetes -> Infrastructure -> Clusters -> Add cluster
+end note
+
+"PF9 UI" -> "PF9 UI": Choose "Manual deploy" and provide details as required
+note right of "PF9 UI"
+    The following details are to be provided:
+     - Cluster Name
+     - [Cluster API FQDN]
+     - Containers CIDR (used by Flannel)
+     - Services CIDR (used by K8s as VIPs for services). It's used to access service from outside.
+     - Allow workloads on Master Nodes (default: True)
+     - Privileged (default: True to allow running privileged containers)
+     - Advanced API Configuration (default: False)
+     - Enable Application Catalog (default: False to enable HELM application catalog on this cluster)
+
+    It creates logical entity for cluster. So far, no configuration
+    of master or slave is done.
+end note
+
+
+Rollie -> "PF9 UI": Add nodes to cluster
+note right of "PF9 UI"
+  You choose how many nodes are to be part of cluster. Minimum is 1.
+  Go to UI and browse to: Kubernetes -> Infrastructure -> Clusters -> Select Cluster
+  At this point, selected nodes will be shown to cluster.
+  As you press the button 'Attach to cluster', cluster creation starts.
+end note
+
+loop FOR EVERY NODE
+    "PF9 UI" -> "PF9 API": Apply roles
+    "PF9 API" -> CommsAgent: Apply K8 roles on the node
+end loop
+
+"PF9 UI" -> "PF9 UI": Keep refreshing the node and cluster status
+Rollie -> "PF9 UI": Observe the baremetal cluster status.
+note right of "PF9 UI"
+   The new cluster's status will get updated to "Connected", indicating the readiness for use.
+end note
+
+
+newpage
+
+"K8s-LCM" -> "PF9 API": Discovers the kubernets cluster
+"K8s-LCM" -> "HPE OneSphere API": Creates a kubernetes zone
+note right
+    Need to figure out a way to decide how we will feed
+    region and zone information as catalog UI was faciliating
+    earlier. Can we auto-generate region based on where
+    kubernetes cluster is deployed (hint: baremetal region
+    and zone). Needs to be discussed.
+end note
+"K8s-LCM" -> "K8s-LCM": Deploy marketplace agent
+
+note right of "K8s-LCM"
+    Goal is to support hostPath as storage option for PoC and HPE 3PAR
+    as option for production environment.
+end note
+
+opt Storage configuration
+   opt Create storage class for hostPath
+        "K8s-LCM" -> "K8s-API": Create storage class to enable dynamic provisioning for hostPath
+   end
+
+   opt Enable persistent volume using HPE 3PAR
+        "K8s-LCM" -> "K8s-LCM": Deploy and configure HPE 3PAR FlexVolume driver.
+
+note right of "K8s-LCM"
+    Need to deploy dorry FlexVolume driver which in turn runs docker container.
+    The configuration needs certificates as well as etcd reference which we can
+    give for kubernetes cluster (deployed earlier)
+end note
+
+        "K8s-LCM" -> "K8s-API": Create storage class to HPE 3PAR persistent volume
+   end
+end
+
+
+@enduml

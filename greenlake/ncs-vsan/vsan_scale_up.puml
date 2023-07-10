@@ -1,0 +1,82 @@
+@startuml
+
+participant Portal
+participant Sysman
+participant "ESX-LCM"
+participant "vsan-cluster-manager"
+participant "vCenter"
+participant "Host"
+
+
+group Scale up
+    Portal->Sysman: add_disks()
+    Sysman->Sysman: prepare_hosts_disks()
+    Sysman->"ESX-LCM": request_disk_addition()
+    "ESX-LCM"->"vsan-cluster-manager": scale_up_vsan_disks()
+    "vsan-cluster-manager"->vCenter: get_hosts()
+    loop for all hosts
+        "vsan-cluster-manager"->vCenter: enter_host_maintenance()
+        "vsan-cluster-manager"->vCenter: set_data_migration_policy()
+
+        note left
+          Assumptions is that server is hot-pluggable.
+          So, addition of new disk does not need server
+          reboot. If not so, we need to power recycle
+          the host.
+        end note
+        "vsan-cluster-manager"->"vsan-cluster-manager": check_disk_sanity()
+
+        alt Expand existing disk group
+            "vsan-cluster-manager"->vCenter: get_disk_group()
+        else New disk group
+            "vsan-cluster-manager"->vCenter: create_new_disk_group()
+        end
+
+        "vsan-cluster-manager"->vCenter: claim_disk()
+        "vsan-cluster-manager"->vCenter: exit_host_maintenance()
+        "vsan-cluster-manager"->vCenter: validate_capacity_expansion()
+        "vsan-cluster-manager"->"vsan-cluster-manager": publish_scale_up_report()
+    end loop
+
+    "vsan-cluster-manager"-->"ESX-LCM":
+    "ESX-LCM"-->Sysman:
+    Sysman->Portal: notify_result()
+end
+
+newpage
+
+group Scale out
+    Portal->Sysman: add_node()
+    Sysman->Sysman: provision_node()
+    Sysman->"ESX-LCM": add_nodes_to_cluster()
+    "ESX-LCM"->"vsan-cluster-manager": scale_up_vsan_nodes()
+    "vsan-cluster-manager"->Host: get_host_details()
+     group Perform scale out feasability check
+        "vsan-cluster-manager"->"vsan-cluster-manager": check_scale_out_limit()
+        note left
+            For v1, assumption is that we are scaling out from 3 nodes
+            and onwards. So, there is no witness appliance and hence
+            there is no need to remove those.
+        end note
+        loop for all hosts
+            "vsan-cluster-manager"->"vsan-cluster-manager": validate_network_settings()
+            "vsan-cluster-manager"->"vsan-cluster-manager": validate_disk_settings()
+            "vsan-cluster-manager"->"vsan-cluster-manager": validate_memory_settings()
+        end
+     end
+
+     loop for all hosts
+        "vsan-cluster-manager"->vCenter: resynchronize_vsan_cluster()
+        note left
+          Resynchronize step needs to be explored more. Do we need to call
+          once per host or it is a one time call for group of hosts?
+        end note
+     end
+
+    "vsan-cluster-manager"->"vsan-cluster-manager": publish_scale_out_report()
+    "vsan-cluster-manager"-->"ESX-LCM":
+    "ESX-LCM"-->Sysman:
+    Sysman->Portal: notify_result()
+end
+
+@enduml

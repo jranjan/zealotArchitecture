@@ -1,0 +1,77 @@
+@startuml
+
+actor Rollie
+
+participant "ITaaS Portal"
+participant ConnectApp
+participant "HPE OneSphere API"
+participant "PF9 API"
+participant Node
+participant CommsAgent
+participant "PF9 UI"
+
+
+
+Rollie -> "ITaaS Portal": Downloads ConnectApp
+Rollie -> ConnectApp: Launch the ConnectApp application
+note right
+    Download of ConnectApp can be done to any machine
+    but this needs to be able to connect to Nodes
+    which are to be on-boarded for cluster creation.
+end note
+
+loop #LightBlue FOR EVERY NODE
+    Rollie -> ConnectApp: Provides creds to connect to ITaaS Portal
+
+    alt CREATE NEW REGION
+        Rollie -> ConnectApp: Creates new region
+        ConnectApp -> "HPE OneSphere API": Request to create region
+        note right
+            The following fields are to be provided:
+                - Region name
+                - Location (on the map)
+        end note
+    else SELECT EXISTING REGION
+        Rollie -> ConnectApp: Selects existing one
+    end
+
+    alt CREATE NEW ZONE
+        Rollie -> ConnectApp: Creates new zone
+        ConnectApp -> "HPE OneSphere API": Creates zone
+         note right
+            One needs to feed zone name.
+         end note
+    else SELECT EXISTING ZONE
+        Rollie -> ConnectApp: Selects existing one
+    end
+
+    ConnectApp -> ConnectApp: Provide server details
+    note right
+         The following fields are required: IP address (or host name),
+         user name, password, proxy details (if required).
+    end note
+    ConnectApp -> Node: Login to node
+    ConnectApp -> "HPE OneSphere API" : Download helper script
+    ConnectApp -> Node : Execute the script
+    Node -> "PF9 API": downloads agents
+    note right
+        At this point of time the following agents
+        are downloaded and installed: node-agent and host-agent
+    end note
+    Node -> CommsAgent: start the agents
+    ConnectApp -> ConnectApp: Publish node activation result
+end loop
+
+alt
+    Rollie -> "ITaaS Portal": Browse the baremetal zone
+    Rollie -> "ITaaS Portal": Authorize the discovered node added in above step
+else
+    Rollie -> "PF9 UI": Browse the nodes in PF9 inventory
+    note left
+        The nodes are now pat of PF9 resource manager (or inventory)
+    end note
+end
+
+Rollie -> "PF9 UI": Create the kubernetes cluster
+
+@enduml

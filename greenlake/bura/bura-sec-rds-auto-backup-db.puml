@@ -1,0 +1,22 @@
+@startuml
+
+actor Rollie
+
+participant "HPE OneSphere"
+participant "aws-rds"
+
+
+Rollie --> "HPE OneSphere": Deploys OneSphere
+"HPE OneSphere" --> "aws-rds": Creates RDS instances
+"HPE OneSphere" --> "aws-rds": Creates HPE databases
+
+loop forever:
+    "aws-rds" --> "aws-rds": Backup RDS instance
+    note left
+       Amazon RDS automatically performs a full daily
+       snapshot of RDS instances as per user
+       configuration.
+    end note
+end
+
+@enduml
