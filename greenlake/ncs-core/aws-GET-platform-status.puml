@@ -1,0 +1,55 @@
+@startuml
+
+participant "System"
+participant "LCM API"
+participant "aws.py"
+participant "common.py"
+participant "utils.py"
+participant "pf9 client"
+
+note left
+  title (*): /aws/clusters/{uuid}/platform_status
+  description: retrives the status for the GIVEN cluster referenced by uuid
+end note
+
+System ->"LCM API" : Call '/aws/clusters/{uuid}/platform_status'
+note left
+    uuid is cluster id here
+end note
+"LCM API" -> "aws.py" : get_platform_status(uuid)
+activate "aws.py"
+"aws.py" -> "common.py": get_platform_status(uuid)
+
+activate "common.py"
+"common.py" -> "common.py": get_cluster_obj(...)
+"common.py" -> "utils.py": get_pf9_client(tenant, region)
+"utils.py" --> "common.py": return call of get_pf9_client(...)
+note left
+  Critical parameters neeed for retrieving pf9 client are:
+        tenant (default to service)
+        region (master)
+
+  get_pf9_client() makes set of PF9 calls and gets client instance
+  (not detailed here purposefully) There is another flavor of
+  get_pf9_client_with_token()
+end note
+"common.py" -> "pf9 client": get_cluster_obj(...)
+"pf9 client" --> "common.py": return call of get_cluster_obj(...)
+
+"common.py" -> "common.py": create PostDeploy(provider_type, cluster_obj, regino) object
+note left
+    cluster_obj hold plenty of information, which is used
+    to perform set of actions implemented in PostDeploy().
+    See set of actions defined.
+end note
+
+"common.py" -> "deployer.py": call check_completion() to get status
+"deployer.py" --> "common.py": check_completion()
+deactivate "common.py"
+
+"common.py" --> "aws.py": get_platform_status(...)
+deactivate "aws.py"
+"aws.py" --> "LCM API": get_platform_status(...)
+"LCM API" --> "System": Call '/aws/clusters/{uuid}/platform_status'
+
+@enduml

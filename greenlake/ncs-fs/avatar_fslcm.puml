@@ -1,0 +1,102 @@
+@startuml
+
+
+interface systemUtilityInterface
+systemUtilityInterface <|-- SystemUtilityImplementor : implements
+
+interface cliRunnerInterfce
+cliRunnerInterfce <|-- SystemCliRunner : implements
+cliRunnerInterfce <|-- CephCliRunner : implements
+
+interface adeInterface
+adeInterface <|-- AdeImplementor
+SystemCliRunner *-- AdeImplementor : uses
+SystemUtilityImplementor *-- AdeImplementor : uses
+
+interface advfsInterface
+advfsInterface <|-- AdvfsImplementor : implements
+SystemUtilityImplementor *-- AdvfsImplementor : uses
+SystemCliRunner *-- AdvfsImplementor : uses
+
+interface volumeProviderInterfce
+volumeProviderInterfce <|-- CephVolumeProvider : implements
+CephCliRunner *-- CephVolumeProvider : uses
+
+
+interface AvatarSystemInterface
+AvatarSystemInterface <|-- AvatarSystemImplementor : implements
+
+AdeImplementor *-- AvatarSystemImplementor : uses
+AdvfsImplementor *-- AvatarSystemImplementor : uses
+CephVolumeProvider *-- AvatarSystemImplementor : uses
+
+interface systemUtilityInterface {
+    GetHostname() string
+	MakeDirectoy(path string)
+}
+
+interface cliRunnerInterfce{
+    Run(cmd string, args string, verbose bool) string
+}
+
+interface advfsInterface {
+    void CreateDomain()
+    void ImportDomain()
+    void ActivateDomain()
+    void DeactivateDomain()
+    void RemoveDomain()
+}
+
+
+interface adeInterface {
+    void CreateCluster()
+}
+
+interface volumeProviderInterfce {
+    CreateDevice(device Device)
+	GetDeviceMap() map[string]string
+	MapDevice(device Device)
+}
+
+interface AvatarSystemInterface {
+    void CreateFS()
+    void RemoveFS()
+}
+
+class SystemUtilityImplementor {
+}
+
+
+class AdvfsImplementor {
+    __ private data __
+    SystemUtilityImplementor: systemUtilityHandler
+    SystemCliRunner: systemCliRunner
+}
+
+class CephVolumeProvider {
+    __ private methods __
+    SystemUtilityImplementor: systemUtilityHandler
+    CephCliRunner: cephCliRunner
+}
+
+class AvatarSystemImplementor {
+    String: configFile
+
+    __ private data __
+    AdeImplementor: adeHandler
+    AdevfsImplementor: advfsHandler
+    CephVolumeProvider: cephHandler
+
+    __ private methods __
+    void createVolumes()
+    void discoverHostVolumes()
+
+}
+
+
+AvatarSystemImplementor *-- main
+class main {
+    AvatarSystemImplementor: avatarFS
+}
+
+@enduml

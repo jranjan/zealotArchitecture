@@ -1,0 +1,82 @@
+@startuml
+@startuml
+
+participant "System"
+participant "LCM API"
+participant "aws.py"
+participant "common.py"
+participant "utils.py"
+participant "upgrade.py"
+participant "kube configmap"
+participant "pf9 client"
+
+
+note left
+  title (*): /aws/clusters/{uuid}/upgrade
+  description: Creates a webclient
+end note
+
+System ->"LCM API" : Call '/openstack/clusters/{uuid}/upgrade'
+activate "LCM API"
+note left #OrangeRed
+    Required input is uuid of cluster
+end note
+
+activate "aws.py"
+"LCM API" -> "aws.py": upgrade_cluster(uuid, region)
+note left
+    why only region? why not zone as everything revolves
+    around zone for HPE OneSphere?
+end note
+"aws.py" -> "common.py": upgrade_cluster(uuid, region)
+activate "common.py"
+"common.py" -> "common.py": get_cluster_obj(...)
+"common.py" -> "utils.py": get_pf9_client(tenant, region)
+"utils.py" --> "common.py": return call of get_pf9_client(...)
+note left
+  Critical parameters neeed for retrieving pf9 client are:
+        tenant (default to service)
+        region (master)
+
+  get_pf9_client() makes set of PF9 calls and gets client instance
+  (not detailed here purposefully) There is another flavor of
+  get_pf9_client_with_token()
+end note
+"common.py" -> "pf9 client": get_cluster_obj(...)
+"pf9 client" --> "common.py": return call of get_cluster_obj(...)
+"common.py" -> "common.py": _upgrade_prerequisite()
+note over "common.py"
+    Checks for the following:
+        - Can cluster be upgraded?
+        - Is cluster already upgrading?
+        - Is cluster busy?
+
+    If answer of any of above quetion is YES, raise exception.
+    We do more check. If exception is not thrown then we
+    proceed further.
+end note
+"common.py" -> "common.py": create object UpgradeState(cluster_obj, region)
+"common.py" -> "upgrade.py": upgrade_state.store_state()
+activate "upgrade.py"
+"upgrade.py" -> "upgrade.py": _store_data_in_config_map()
+"upgrade.py" -> "kube configmap": Store the upgrade state
+"kube configmap" --> "upgrade.py":
+"upgrade.py" --> "common.py":
+
+"common.py" -> "upgrade.py": upgrade_state.check_state()
+"upgrade.py" -> "kube configmap": read the state
+"kube configmap" --> "upgrade.py":
+"upgrade.py" --> "common.py":
+deactivate "upgrade.py"
+
+"common.py" -> "common.py": send_post_deploy_run_msg()
+"common.py" -> "common.py": send a message to uwsgi mule listener
+"common.py" -> "common.py": call _upgrade_cluster()
+"common.py" -> "pf9 client": POST call to do upgrade
+"pf9 client" --> "common.py":
+"common.py" --> "aws.py":
+deactivate "common.py"
+deactivate "aws.py"
+"aws.py" --> "LCM API":
+deactivate "LCM API"
+@enduml

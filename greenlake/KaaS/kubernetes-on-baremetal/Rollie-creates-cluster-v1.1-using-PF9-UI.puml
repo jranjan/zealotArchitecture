@@ -1,0 +1,85 @@
+
+@startuml
+actor Rollie
+
+participant "PF9 UI"
+
+note over Rollie
+    The below sequence talks about usage of PF9 UI to create cluster.
+
+    Assumptions:
+
+        1) PF9 UI is reskinneed. It has been altered to reflect only data meaningful for
+           kuberentes baremetal cluster
+        2) HPE master DU is separated from PF9 master DU.
+        3) F9 master DU has ports open to be able to communicate to node running on-premise.
+        4) Cluster will be mapped to PF9 master DU. In pahse 1, all cluster are expected
+           to be mapped to same DU. In long run, we might have to map different cluster
+           to different PF9 master DU ONLY if scale issue arises.
+
+    Pre-requisite:
+
+         1) ConnectApp has on-boarded and authorized servers
+         2) ConnectApp has creatd pseudo zone representing kubernetes cluster.
+         2) A link to launch PF9 UI is provided in HPE OneSphere UI.
+
+    Pros:
+
+         1) Leveraging PF9 work already done
+         2) No extra effort for other lifecycle operations like delete, update and upgrade.
+
+    Cons:
+
+        1) Dependency on PF9 re-skinning work (more than just re-skinning)
+
+end note
+
+
+Rollie -> "PF9 UI": Browse the authorized hosts to be a part of the cluster
+Rollie -> "PF9 UI": Create cluster
+note right of "PF9 UI"
+  Browse to: Region: master Tenant: service
+  Browse to: Kubernetes -> Infrastructure -> Clusters -> Add cluster
+end note
+
+"PF9 UI" -> "PF9 UI": Choose "Manual deploy" and provide details as required
+note right of "PF9 UI"
+    The following details are to be provided:
+     - Cluster Name
+     - [Cluster API FQDN]
+     - Containers CIDR (used by Flannel)
+     - Services CIDR (used by K8s as VIPs for services). It's used to access service from outside.
+     - Allow workloads on Master Nodes (default: True)
+     - Privileged (default: True to allow running privileged containers)
+     - Advanced API Configuration (default: False)
+     - Enable Application Catalog (default: False to enable HELM application catalog on this cluster)
+
+    It creates logical entity for cluster. So far, no configuration
+    of master or slave is done.
+end note
+
+
+Rollie -> "PF9 UI": Add nodes to cluster
+note right of "PF9 UI"
+  You choose how many nodes are to be part of cluster. Minimum is 1.
+  Go to UI and browse to: Kubernetes -> Infrastructure -> Clusters -> Select Cluster
+  At this point, selected nodes will be shown to cluster.
+  As you press the button 'Attach to cluster', cluster creation starts.
+end note
+
+"PF9 UI" -> "PF9 UI": Keep refreshing the node and cluster status
+Rollie -> "PF9 UI": Observe the baremetal cluster status.
+note right of "PF9 UI"
+   The new cluster's status will get updated to "Connected", indicating the readiness for use.
+end note
+
+note over Rollie
+    to be continued...
+
+    After this kuberentes LCM comes into picture and does set of activities
+    like deploying marketplace agent, creating storage class etc which is
+    same irrespective of mode Rollie choose to create cluster. See follow-up
+    of completing post-cluster creation steps in separate sequence diagram.
+end note
+
+@enduml

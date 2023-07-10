@@ -1,0 +1,27 @@
+@startuml
+actor Ed
+
+participant "HPE OneSphere UI"
+participant "HPE OneSphere API"
+participant Marketplace
+participant K8sLCM
+participant "PF9 API"
+
+Ed -> "HPE OneSphere UI": Go to project screen.
+Ed -> "HPE OneSphere UI": Click update deployment link.
+"HPE OneSphere UI" -> "HPE OneSphere API": Invoke deployment API to update slave nodes
+note left
+    Only slave node can be increased or decreased. Only single master
+    node is supported as of now.
+end note
+"HPE OneSphere API" -> Marketplace: Update cluster
+Marketplace -> K8sLCM: Update cluster
+K8sLCM -> "PF9 API": Update cluster
+
+note left
+    The overall workflow is a asynchronous operation. UI
+    tracks the status of ongoing operation and updates the
+    HPE OneSphere UI state.
+end note
+
+@enduml
