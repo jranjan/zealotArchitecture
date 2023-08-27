@@ -1,0 +1,20 @@
+@startuml
+
+main->util: utils.initialize_logging('create')
+main->main: kubernetes.KubernetesAPIClient()
+main->util: utils.detect_k8s_namespace()
+main->util: utils.detect_aws_region_name()
+
+loop forever:
+    main->main: os.environ.get('snapshot attributes')
+    main->util: utils.take_snapshot()
+    alt os.environ.get('take_single_snapshot'):
+        main->main: done()
+    else
+        main->util: utils.clean_up_snapshots()
+        main->main: compute_sleep_period()
+        main->main: time.sleep()
+    end
+end
+
+@enduml

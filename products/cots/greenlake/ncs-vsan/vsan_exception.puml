@@ -1,0 +1,30 @@
+@startuml
+
+
+
+class VsanException
+
+
+class VsanException {
+    message = _("An unknown exception occurred.")
+    details = None
+   __init__(self, message=None, details=None)
+}
+
+
+VsanException <|-- VsanSetupException
+VsanException <|-- VsanResourceException
+VsanException <|-- VsanUpgradeException
+VsanException <|-- VsanFlexException
+
+VsanResourceException <|-- vCenterConnecitonException
+VsanResourceException <|-- LicenseException
+VsanResourceException <|-- HostException
+VsanResourceException <|-- DiskGroupException
+VsanResourceException <|-- NetowrkException
+
+VsanSetupException <|-- VsanStoragePolicyException
+VsanSetupException <|-- VsanFaultDomainException
+
+
+@enduml

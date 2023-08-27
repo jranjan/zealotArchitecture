@@ -1,0 +1,58 @@
+
+@startuml
+actor Rollie
+
+participant "HPE OneSphere UI"
+participant "HPE OneSphere API"
+participant K8sLCM
+participant "PF9 API"
+
+note over Rollie
+    The below sequence talks about usage of HPE OneSphere UI to create cluster.
+
+    Assumptions:
+
+        We should be fine with the idea of usage of private zone page (or landscape)
+        to create cluster. Note that it is different from what is being done for
+        kuberentes cluster on virtualized environment. But it is the path we have
+        choosen because of various reason and hence Rollie is supposed to
+        exercise cluster creation in case of baremetal instead of Ed/Carla in
+        case of virtualized environment.
+
+    Pre-requisite:
+
+         1) ConnectApp has on-boarded and authorized servers
+         2) ConnectApp has creatd pseudo zone representing kubernetes cluster.
+         2) New NCS API is defined for cluster creation.
+
+    Pros:
+
+         1) Not dependent on PF9 UI
+         2) User intutive way to support cluster operations like delete, update and upgrade.
+            It is sort of an alternative to what PF9 UI provides.
+
+    Cons:
+
+        1) New NCS API needs to be developed to create cluster
+        2) Might need UX team alignment.
+        3) Extra UI work for HPE OneSphere side.
+
+end note
+
+
+Rollie -> "HPE OneSphere UI": Browse the private zone page
+Rollie -> "HPE OneSphere UI": Request cluster creation
+"HPE OneSphere UI" -> "HPE OneSphere API": Create cluster
+"HPE OneSphere API" -> K8sLCM: Create cluster
+K8sLCM -> "PF9 API": Create cluster
+
+note over Rollie
+    to be continued...
+
+    After this kuberentes LCM comes into picture and does set of activities
+    like deploying marketplace agent, creating storage class etc which is
+    same irrespective of mode Rollie choose to create cluster. See follow-up
+    of completing post-cluster creation steps in separate sequence diagram.
+end note
+
+@enduml

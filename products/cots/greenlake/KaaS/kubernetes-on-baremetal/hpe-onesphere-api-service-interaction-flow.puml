@@ -1,0 +1,124 @@
+@startuml
+
+skinparam sequence {
+	ArrowColor DeepSkyBlue
+	ActorBorderColor DeepSkyBlue
+	LifeLineBorderColor blue
+	LifeLineBackgroundColor #A9DCDF
+	sequenceArrowThickness 2
+
+	ParticipantBorderColor DeepSkyBlue
+	ParticipantBackgroundColor DodgerBlue
+	ParticipantFontName Impact
+	ParticipantFontSize 17
+	ParticipantFontColor #A9DCDF
+
+	ActorBackgroundColor aqua
+	ActorFontColor DeepSkyBlue
+	ActorFontSize 17
+	ActorFontName Aapex
+}
+
+
+actor Rollie
+
+participant "HPE OneSphere UI"
+participant "HPE OneSphere API"
+participant "Service API"
+participant "Persistent Engine"
+
+
+
+ alt #LightYellow SYNCHRONOUS REQUEST
+    Rollie -> "HPE OneSphere UI": perform operation
+    activate "HPE OneSphere UI"
+        note over Rollie
+            There is no clarity needed here but added here
+            to give full context.
+
+            It is a blocking call, suitable for requests which can
+            be processed quickly or can not be done in background.
+            So, HPE OneSphere API has to wait which might make
+            HPE OneSphere UI to wait (might vary, based on UI design)
+
+            Example: create cluster, download kube config etc.
+        end note
+        "HPE OneSphere UI" -> "HPE OneSphere API": invoke HPE OneSphere API
+        "HPE OneSphere API" -> "Service API": Call service API
+        "Service API" -> "Service API": Start processing the request
+        "Service API" -> "Service API": Create request (id: 226ca270-f470-11e8-8eb2-f2801f1b9fd1)
+        "Service API" -> "Persistent Engine": store in SERVICE DATABASE (if needed)
+        "Service API" -> "Service API": cooks response
+        "Service API" --> "HPE OneSphere API": send the response
+        "HPE OneSphere API" --> "HPE OneSphere UI": validate the response
+        "HPE OneSphere API" --> "HPE OneSphere UI": send the response
+        "HPE OneSphere UI" --> "HPE OneSphere UI": renders the response
+    deactivate "HPE OneSphere UI"
+ else #LightGrey ASYNCHRONOUS REQUEST
+     Rollie -> "HPE OneSphere UI": perform operation
+     activate "HPE OneSphere UI"
+     activate "HPE OneSphere API"
+         note over Rollie
+            There is no clarity needed here but added here
+            to give full context.
+
+            It is a blocking call, suitable for requests which can
+            be processed quickly or can not be done in background.
+            So, HPE OneSphere API has to wait which might make
+            HPE OneSphere UI to wait (might vary, based on UI design)
+
+            Example: activate cluster, upgrade cluster etc.
+         end note
+         "HPE OneSphere UI" -> "HPE OneSphere API": invoke HPE OneSphere API
+         "HPE OneSphere API" -> "Service API": Call service API
+         "Service API" -> "Service API": Create request (id: 226ca270-f470-11e8-8eb2-f2801f1b9fd1)
+         note left #Cyan
+            My question is for this section.
+
+            - How do we create a polling thread? is it a go routine?
+            - How many such pollster we can create?
+            - What if status does not change say because SERVICE crashed?
+            - Can we call extra API to fetch extra data post status has changed?
+            - Should we have timeut eco-system in place?
+            - How will it impace UI if API is polling in background?
+
+            The problem is API acts as broker between API and Service
+            (for good reason only). But it poses a new problem to be solved in
+            consistent way. My ask is about what pattern we need to adhere.
+
+            What I am aware of?
+
+            There already exists one pattern used duLCM. Can we use that? Or,
+            do we have better alternate?
+         end note
+         "Service API" -> "Persistent Engine": persist information in SERVICE DATABASE (if needed)
+         "Service API" -> "Service API": cooks response
+         "Service API" --> "HPE OneSphere API": notify sends tracking id (say 06626a46-f471-11e8-8eb2-f2801f1b9fd1)
+         "HPE OneSphere API" --> "HPE OneSphere UI": sends tracking id
+         == waiting for request to be processed and tracking id's status to change ==
+     deactivate "HPE OneSphere UI"
+     deactivate "HPE OneSphere API"
+          "Service API" -> "Service API": Starts processing the request
+            ... ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   AFTER SOME TIME (SAY 30 MINUTES) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ ...
+          "Service API" -> "Service API": Change the status of tracking id 06626a46-f471-11e8-8eb2-f2801f1b9fd1
+         activate "HPE OneSphere API"
+         activate "HPE OneSphere UI"
+         loop POLL tracking id 06626a46-f471-11e8-8eb2-f2801f1b9fd1
+            alt #Cyan status changed to desired state
+                "HPE OneSphere API" -> "HPE OneSphere API": validate the response
+                "HPE OneSphere API" -> "HPE OneSphere API": Update OneSphere API database (if needed)
+                note left
+                    As per API guidelines, Service is not supposed
+                    to touch HPE OneSphere API database. So, it has to
+                    do polling and update itself when things are done.
+                end note
+                "HPE OneSphere API" -> "HPE OneSphere API": cooks the response
+                "HPE OneSphere UI" --> "HPE OneSphere API": Polls for status change
+                "HPE OneSphere UI" -> "HPE OneSphere UI": renders information as designed
+            end
+         deactivate "HPE OneSphere API"
+         deactivate "HPE OneSphere UI"
+         end
+     deactivate Rollie
+ end
+@enduml

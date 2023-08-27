@@ -1,0 +1,66 @@
+@startuml
+
+@startuml
+skinparam backgroundColor #EEEBDC
+skinparam handwritten true
+
+skinparam sequence {
+	ArrowColor DeepSkyBlue
+	ActorBorderColor DeepSkyBlue
+	LifeLineBorderColor blue
+	LifeLineBackgroundColor #A9DCDF
+
+	ParticipantBorderColor DeepSkyBlue
+	ParticipantBackgroundColor DodgerBlue
+	ParticipantFontName Impact
+	ParticipantFontSize 17
+	ParticipantFontColor #A9DCDF
+
+	ActorBackgroundColor aqua
+	ActorFontColor DeepSkyBlue
+	ActorFontSize 17
+	ActorFontName Aapex
+}
+
+participant "VSA Proxy"
+participant vCenter
+participant Hypervisor
+participant VM
+participant MediaAgent
+
+
+"VSA Proxy" -> vCenter: Locate VM on ESXi host
+"VSA Proxy" -> Hypervisor: Initiate snapshot
+Hypervisor -> VM: Quiesce VM
+Hypervisor -> Hypervisor: Conducts a software snapshot
+Hypervisor -> "VSA Proxy": Send metadata
+
+note over "VSA Proxy"
+    This mode is preferred if VSA proxy needes to virtualized
+    because of SAN only mode can not be used.
+
+    In HotAdd mode, VM is already mounted to ESX host on
+    which proxy is running. The ESX host running proxy
+    must have access to all datastores for the virtual
+    machine. If the virtual machine and the proxy are not
+    not on the same host, all datastores must be shared
+    among hosts. In this case, data does not move over
+    LAN and performance is as good as SAN only mode. In
+    this case, backup and data traffic can be separated.
+end note
+
+group HotAdd mode
+    "VSA Proxy" -> "VSA Proxy": VM being backed up is already mounted to ESXi host running proxy
+    "VSA Proxy" -> "VSA Proxy": Read data from local mount
+    "VSA Proxy" -> MediaAgent: Send data
+    MediaAgent -> BackupStorage: Stores backup data
+end
+
+MediaAgent -> MediaAgent: Prepares index cache
+MediaAgent -> ContentStore: Index are stored in library
+MediaAgent --> "VSA Proxy"
+"VSA Proxy" -> Hypervisor: Deletes snapshot
+
+
+
+@enduml

@@ -1,0 +1,202 @@
+@startuml
+
+actor Rollie
+
+participant "ITaaS Portal"
+participant ConnectApp
+participant "HPE OneSphere UI"
+participant "HPE OneSphere API"
+participant "PF9 API"
+participant Node
+participant CommsAgent
+participant "PF9 UI"
+
+note left Rollie
+    This workflow captures the onboarding of servers for day-zero
+    cluster deployment. For update, please see different sequence
+    diagram as there will be slight change in sequence.
+end note
+
+group #Lavender Step 1 : Download the app
+    note over Rollie
+        This step illustrates download of ConnectApp.
+    end note
+    Rollie -> "ITaaS Portal": Downloads ConnectApp
+    Rollie -> ConnectApp: Launch the ConnectApp application
+    note right
+        Download of ConnectApp can be done to any machine
+        but this needs to be able to connect to Nodes
+        which are to be on-boarded for cluster creation.
+    end note
+end
+
+|||
+|||
+group #LightYellow Step 2: Create pseudo kubernete zone
+    |||
+    note over Rollie
+        This step illustrates collecting set of input from
+        |||
+        users which allows followin aspects:
+            1) Creation of region and zone based on geo and location
+            2) Creation of pseudo cluster zone which can be consumed by
+               Catalog for app deployment.
+
+        Assumption:
+             1) All clusters are mapped to single PF9 master DU. (at least in phase 1).
+             2) 1-1 mapping exists between cluster and baremetal zone.
+             3) All nodes in baremetal zone are homogenous.
+
+        The region being referred here is different from PF9 region orchestrating
+        cluster creation service and has DU, which is more for orchestration and
+        will be mostly in AWS US EAST.
+    end note
+
+    loop FOR EVERY NODE
+        Rollie -> ConnectApp: Provides creds to connect to ITaaS Portal
+
+        alt CREATE NEW REGION
+            Rollie -> ConnectApp: Creates new region
+            ConnectApp -> "HPE OneSphere API": Request to create region
+            note right
+                User input required: region name, location (on the map).
+            end note
+        else SELECT EXISTING REGION
+            Rollie -> ConnectApp: Selects existing one
+        end
+
+        alt CREATE NEW ZONE
+            Rollie -> ConnectApp: Creates new zone
+            ConnectApp -> "HPE OneSphere API": Creates zone
+             note right
+                User input required:
+                    - zone name and
+                    - PF9 DU, to start with this field will be
+                      hard codes assuming there is only one PF9
+                      DU.
+             end note
+        else SELECT EXISTING ZONE
+            Rollie -> ConnectApp: Selects existing one
+        end
+
+
+        ConnectApp -> ConnectApp: Provide server details
+        note right
+             User input required:
+                - IP address (or host name),
+                - user name,
+                - password,
+                - proxy details (if required).
+        end note
+        ConnectApp -> Node: Login to node
+        ConnectApp -> "HPE OneSphere API" : Download helper script
+        ConnectApp -> Node : Execute the script
+        Node -> "HPE OneSphere": downloads agents
+        note right
+            At this point of time the following agents
+            are downloaded and installed: node-agent and host-agent
+        end note
+        Node -> CommsAgent: start the agents
+        ConnectApp -> "HPE OneSphere API": Publish node as zone connection
+        note left
+            It will result in creating map of servers with zone in
+            ncs-api database.
+        end note
+
+
+end
+
+newpage
+
+|||
+|||
+
+    group #Turquoise Step 3 : Authorization of servers
+        |||
+         note over Rollie
+            All servers added need to be authorized before they gets consumed
+            for cluster. Authorization of servers can be done in one for the
+            following ways:
+                1) Using PF9 UI or
+                2) ConnectApp
+
+             It is more prudent to do using ConnectApp though the below sequence
+             diagram talks about both for the sake of evaluation.
+        end note
+
+        alt Usage of ConnectApp to authorize servers
+            ConnectApp -> "HPE OneSphere API": Enable zone connections
+            note left
+                As part of enbling the servers the following will be done:
+                    - Get all servers from PF9 resource manager for DU
+                    - Filter the server matching the zone connection attributes
+                    - Get PF9 resource id
+                    - Authorize server using PF9 API
+                    - Set server connection to enabled.
+
+                 The flow is more like other private cloud onboarding
+                 but it has subtle difference that it creates a pseudo zone
+                 (like Catalog does in virtualized environment). So, there
+                 is some code change anticipated here.
+            end note
+        else Usage of PF9 UI to authorize servers
+            Rollie -> "PF9 UI": Browse the nodes in PF9 inventory
+            loop FOR EVERY SERVER
+                Rollie -> "PF9 UI": Click authorize button for each servers
+            end loop
+        end
+    end
+end loop
+|||
+|||
+
+newpage
+
+group #GreenYellow 4: Creation of cluster
+     |||
+     note over Rollie
+        The cluster creation workflow can be exercised in multiple ways. The
+        proposed choices are:
+            1) PF9 UI to create cluster
+            2) ConnectApp to create cluster
+            3) HPE OneSphere UI (of private zone) to create cluster
+
+        The preferred option is (1). This diagram talks about cluster creation
+        only for the sake of completeness. For detailed description, see
+        cluster creation workflow.
+
+        As a flow, we agreed to deploy kuberentets on baremetal (not like a
+        deployment which we do incase of cluster deployment in virtualized
+        environment). If we compare the three option, here is the view:
+
+            1) PF9 UI is easy to do if it does not incur too much cost to UI team
+            2) ConnectApp is good for creation of cluster but it does not sound
+               optimal for remaining lifecycle like update, upgrade and delete.
+               It does not sound too convincing from user experience perspective.
+               But it is OK to have cluster created and discovered in HPE OneSphere
+               private zone page and rest of operation can be performed from
+               there.
+            3) It is more convincing as it resembles the experience of PF9
+               UI and does not depend upon PF9 UI effort. Also, the other
+               lifecycle operations e.g. delete, update and upgrade can be
+               carried out from same HPE OneSphere UI and will have smooth
+               user experience.
+    end note
+    alt PF9 UI to create cluster
+        Rollie -> "PF9 UI": Create the kubernetes cluster
+    else ConnectApp to create cluster
+        ConnectApp -> "HPE OneSphere API": Create cluster
+        note left
+            A new HPE OneSphere API needs to be developed.
+        end note
+    else HPE OneSphere UI (of private zone) to create cluster
+        Rollie -> "HPE OneSphere UI": Create cluster
+        "HPE OneSphere UI" -> "HPE OneSphere API": Create cluster
+        note left
+            A new HPE OneSphere API needs to be developed which will be
+            invoked by HPE OneSphere UI (private zone page).
+        end note
+    end
+end
+
+@enduml

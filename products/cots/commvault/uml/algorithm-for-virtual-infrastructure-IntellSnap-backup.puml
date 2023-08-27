@@ -1,0 +1,64 @@
+@startuml
+
+@startuml
+skinparam backgroundColor #EEEBDC
+skinparam handwritten true
+
+skinparam sequence {
+	ArrowColor DeepSkyBlue
+	ActorBorderColor DeepSkyBlue
+	LifeLineBorderColor blue
+	LifeLineBackgroundColor #A9DCDF
+
+	ParticipantBorderColor DeepSkyBlue
+	ParticipantBackgroundColor DodgerBlue
+	ParticipantFontName Impact
+	ParticipantFontSize 17
+	ParticipantFontColor #A9DCDF
+
+	ActorBackgroundColor aqua
+	ActorFontColor DeepSkyBlue
+	ActorFontSize 17
+	ActorFontName Aapex
+}
+
+participant "VSA Proxy"
+participant vCenter
+participant Hypervisor
+participant VM
+participant MediaAgent
+
+note over Hypervisor
+    IntelliSnap is Commvault technology.
+    It creates snapshot in primary storage.
+    These snapshots can be mounted directly to
+    the MediaAgent and backed up while the
+    production server continues to service clients.
+    Additionally, restores can be done almost
+    instantaneously by reverting the snapshot as
+    long as the array is fully functional.
+
+    In this case, snapshots are created on primary storage.
+    It is followed by backup copy job to move data from
+    primary storage to backup repository.
+end note
+
+group Snapshot creation phase
+    "VSA Proxy" -> vCenter: Locate VM on ESXi host
+    "VSA Proxy" -> Hypervisor: Initiate snapshot
+    Hypervisor -> VM: Quiesce VM
+    Hypervisor -> Hypervisor: Conducts a software snapshot on primary storage
+    Hypervisor --> "VSA Proxy":
+    MediaAgent -> "Primary storage": Perform hardware snapshot of volume
+    Hypervisor -> Hypervisor: Software snapshot is deleted
+end group
+
+group Backup copy phase
+    "VSA Proxy" -> MediaAgent: Runs backup job
+    MediaAgent -> MediaAgent: Mount hardsware snapshot copy to MediaAgent
+    MediaAgent -> "Backup Repository": Copy data (may use replication if configured)
+    "VSA Proxy" -> "VSA Proxy": Unmount snapshot from media server
+end group
+
+
+@enduml

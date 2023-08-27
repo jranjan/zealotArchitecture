@@ -1,0 +1,36 @@
+@startuml
+actor "build_system.yml"
+participant "oneview"
+participant "iLO"
+
+"build_system.yml"->"build_system.yml": read vsa/svmc/nodes etc params
+
+note left
+    Zoom in SDI profile creation activity.
+end note
+
+"build_system.yml"->"build_system.yml": call get_network_by_purpose() for iSCSI and management
+"build_system.yml"->"oneview": connect
+"build_system.yml"->"oneview": get hypervisor cluster profile (by uri)
+"build_system.yml"->"build_system.yml": retrieve host profile uris (a dict value read)
+
+loop for every host profile uri
+    "build_system.yml"->"oneview": get hypervisor host profile
+    "build_system.yml"->"build_system.yml": get hypervisor host uri
+    "build_system.yml"->"oneview": get host details
+    "build_system.yml"->"build_system.yml": get server uuid
+    "build_system.yml"->"iLO": get logical disks
+     note right
+        Here the disk model gets created and
+        we say about type, capacity, purpose etc.
+        Currently, Hellfire does not this
+        area optimally.
+     end note
+end
+
+"build_system.yml"->"build_system.yml": get quorum details
+"build_system.yml"->"build_system.yml": get software attributes
+
+"build_system.yml"->"oneview": create sdi system profile
+
+@enduml
