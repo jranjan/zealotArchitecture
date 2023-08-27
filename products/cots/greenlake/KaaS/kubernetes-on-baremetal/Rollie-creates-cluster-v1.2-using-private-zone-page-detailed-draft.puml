@@ -1,0 +1,350 @@
+@startuml
+actor Rollie
+
+participant ConnectApp
+participant "HPE OneSphere UI"
+participant "HPE OneSphere API"
+participant Node
+participant CommsAgent
+participant K8sLCM
+participant "StatusPollster"
+participant "PF9 API"
+
+note over Rollie #LightYellow
+    The below sequence talks about detailed workflow with low level
+    component(s) details to sketch out the overall workflow of
+    cluster maanagement including the role of ConnectApp.
+
+    Declaration:
+    ---------------
+    It is proposal and is subject to change.
+
+    Goals:
+    ---------------
+        1) Minimise changes in HPE OneSphere API as much as possible.
+        2) Avoid introducing new HPE OneSphere API by tweaking exisitng HPE OneSphereAPI.
+        3) Monitor server/node states as closely as possible.
+        4) Keep Kuberentes LCM stateless as is today.
+        5) Retain the consumption flow of catalog.
+
+    Pre-requisite:
+    ---------------
+        1) Node is not on-boarded and things are being started from scratch.
+        2) ConnectApp should be able to access the node
+
+    Covered operation(s):
+    ----------------------
+
+        1) Download ConnectApp
+        2) Create region / Create zone / On-boarding of node
+        3) Authorizing nodes
+        4) Create cluster
+        5) Activate cluster
+        6) Update cluster
+        7) Download Kubeconfig
+        8) Delete cluster
+        9) Delete zone
+
+    Pending decision(s):
+    ------------------------
+        1) Need to take decision whether StatusPollster thread does change the state or
+           it just returns the state as seen by PF9 which is used by K8sLCM main
+           thread to change the state. Need to evaluate pros and cons.
+        2) Handling of error scenarios indepdently. Each mighht require its
+           own detailed logic.
+        3) Do we need segregate zone deletion from cluster? My view is YES.
+
+end note
+
+
+group #Lavender Step 1 : Download ConnectApp
+    Rollie -> "ITaaS Portal": Downloads ConnectApp
+    Rollie -> ConnectApp: Launch the ConnectApp application
+end
+
+
+|||
+|||
+group #Gold Step 2: Create region / Create zone / On-boarding of node
+    |||
+    note over Rollie #LightYellow
+        ConnectApp creates Kubernetes region and zone. It also puts
+        on-boarded node in zone basket so that PF9 resource manager
+        can see it.
+    end note
+
+    loop FOR EVERY NODE
+        Rollie -> ConnectApp: Provides creds to connect to ITaaS Portal
+
+        alt Create new region
+            Rollie -> ConnectApp: Request to create new region
+            ConnectApp -> "HPE OneSphere API": POST /rest/regions
+        else #LavenderBlush Select existing region
+            ConnectApp -> "HPE OneSphere API": GET /rest/regions
+            Rollie -> ConnectApp: Selects existing one
+        end
+
+        alt Create new zone
+            Rollie -> ConnectApp: Request to create new zone
+            ConnectApp -> "HPE OneSphere API": POST /rest/zones
+            note left #LightYellow
+                cluster data is created. But cluster_state: Undefined.
+            end note
+        else #LavenderBlush Select existing zone
+            ConnectApp -> "HPE OneSphere API": GET /rest/zones
+            Rollie -> ConnectApp: Selects existing one
+        end
+
+        Rollie -> ConnectApp: Request to on-board nodes (details given)
+        ConnectApp -> Node: Login to node
+        ConnectApp -> "HPE OneSphere API" : Download installer script
+        ConnectApp -> Node : Execute the script
+        Node -> "HPE OneSphere API": downloads agents
+        Node -> CommsAgent: start the agents
+        note over ConnectApp #LightYellow
+            node-agent and host-agent are installed which means
+            that on-prem can node can talk to SaaS portal.
+        end note
+        ConnectApp -> "HPE OneSphere API": PATCH /rest/zones/{id} to mark node_state:Enabling
+        loop Unitl node_state: Enabled | Disabled
+            K8sLCM -> "PF9 API": Call PF9 API to add nodes to PF9 resource manager
+            K8sLCM -> "StatusPollster":  Starts time-bound thread
+            group Inside the thread
+                "StatusPollster" -> "StatusPollster": Observe change in node_state
+                alt node is added to PF9 resource pool
+                    "StatusPollster" --> K8sLCM: Returns operation status
+                else #LightPink Error occured
+                    "StatusPollster" --> K8sLCM: Returns operation failure status
+                else #LightPink Poller times out
+                    "StatusPollster" --> "StatusPollster": timedout or terminated abruptly.
+                    note left
+                        thread terminated abruptly or timed out. Main thread needs to handle
+                        the behavior.
+                    end note
+                end
+            end
+            K8sLCM -> "HPE OneSphere API": Change the node_state: Enabled (success) | Disabled (failure)
+        end loop
+    end loop
+end
+
+
+|||
+|||
+group #Tan Step 3: Authorizing nodes
+    |||
+    note over ConnectApp #LightYellow
+        Authorization of node means that node is visible in PF9 resource
+        manager with metatdata and can be consumed for cluster creation
+        process. Make sure that node_state is enabled.
+    end note
+    ConnectApp -> "HPE OneSphere API": Get node_state
+    ConnectApp -> ConnectApp: Ensure node_state:Enabled
+    ConnectApp -> "HPE OneSphere API":  PATCH /rest/zones/{id} to mark node_state:Authorizing
+    "HPE OneSphere API"-> K8sLCM: Calls K8sLCM API to authorize node
+    K8sLCM -> "PF9 API": Calls PF9 API to authorize node
+    K8sLCM -> "StatusPollster":  Starts time-bound thread
+    group Inside the thread
+        "StatusPollster" -> "StatusPollster": Observe change in node_state
+        alt node_state:Authorized
+            "StatusPollster" --> K8sLCM: Returns operation status
+        else #LightPink Error occured
+            "StatusPollster" --> K8sLCM: Returns operation failure status
+        else #LightPink Poller times out
+             "StatusPollster" --> "StatusPollster": timedout or terminated abruptly.
+              note left
+                 thread terminated abruptly or timed out. Main thread needs to handle
+                 the behavior.
+              end note
+        end
+    end
+    "StatusPollster" -> "HPE OneSphere API": PATCH /rest/zones/{id} to mark node_state:Authorized (success) | Enabled (failure)
+end
+
+
+
+newpage
+
+
+
+|||
+|||
+group #Orange Step 4: Create cluster
+    |||
+    Rollie -> "HPE OneSphere UI": Request to create cluster
+    "HPE OneSphere UI" -> "HPE OneSphere API": PATCH /rest/zones/{id} to create cluster
+    "HPE OneSphere API" -> K8sLCM: Creates cluster
+    K8sLCM -> "PF9 API": Creates cluster
+    K8sLCM -> "HPE OneSphere API": Mark cluster_state:Created
+    note left #LightYellow
+        Appropriate IAM role might need to be created.
+        To be detailed further...
+    end note
+end
+
+
+
+|||
+|||
+group #GreenYellow Step 5: Activate cluster
+    |||
+    Rollie -> "HPE OneSphere UI": Request to activate cluster (set of nodes provided)
+    "HPE OneSphere UI" -> "HPE OneSphere API": PATCH /rest/zones/{id} to add nodes
+    "HPE OneSphere API" -> K8sLCM: Call K8sLCM API to add nodes
+    K8sLCM -> "HPE OneSphere API": PATCH /rest/zones/{id} to mark cluster_state:Activating and node_state:Activating
+    K8sLCM -> "PF9 API": Call PF9 API to add nodes to cluster
+    K8sLCM -> "StatusPollster":  Starts time-bound thread
+    group Inside the thread
+        "StatusPollster" -> "StatusPollster": Observe change in cluster_state
+        alt cluster_state:Activated
+            "StatusPollster" -> "PF9 API": Get node_state
+            "StatusPollster" -> "HPE OneSphere API": PATCH /rest/zones/{id} to mark cluster_state:Activated and node_state:Activated
+        else #LightPink cluster_state is UNDESIRED
+            "StatusPollster" -> "StatusPollster": Handle ErrorScenarios(1)
+            "StatusPollster" -> "HPE OneSphere API": PATCH /rest/zones/{id} to mark cluster_state:Created and node_state:Authorized
+            note left #Violet
+                ErrorScenarios(1) will be dealt in separate story. It might require
+                following set of activities:
+                    - pulling nodes out of cluster
+                    - walking through deactivating state so that it can come to authorized state
+                And, the behaivor will very much depends upon how PF9 supports error handling
+                in these scenarios. To be detailed further...
+            end note
+        else #LightPink Poller times out
+            "StatusPollster" -> "PF9 API": Get node_state
+            "StatusPollster" -> "StatusPollster": Handle ErrorScenarios(2)
+            "StatusPollster" -> "HPE OneSphere API": PATCH /rest/zones/{id} to mark cluster_state:Enabled and node_state:Authorized
+            note left #Violet
+                ErrorScenarios(2) will be dealt in separate story.
+                The strategy will be influenced by:
+                    - our retry policy
+                    - pulling nodes out of cluster
+                    - walking through deactivating state so that it can come to authorized state
+                We might need to re-try. We might ask PF9 to stop processing the cluster creation
+                so that we can rollback things. To be detailed further...
+            end note
+        end
+    end
+end
+
+
+
+newpage
+
+
+
+
+|||
+|||
+group #Lime Aqua 6: Update cluster
+    |||
+    Rollie -> "HPE OneSphere UI": Update cluster (set of nodes provided)
+    "HPE OneSphere UI" -> "HPE OneSphere API": PATCH /rest/zones/{id} to mark cluster_state:Updating and node_state: Activating
+    "HPE OneSphere API" -> K8sLCM: Call API to add nodes
+    K8sLCM -> "PF9 API": Call PF9 API to add nodes to cluster
+    K8sLCM -> "StatusPollster":  Starts time-bound thread to add nodes to cluster
+    group Inside the thread
+        "StatusPollster" -> "PF9 API": Observe change in cluster_state
+        alt Cluster reaches desired state
+            "StatusPollster" -> "PF9 API": Get node_state
+            "StatusPollster" -> "HPE OneSphere API": PATCH /rest/zones/{id} to mark cluster_state:Updated and node_state:Activated
+        else #LightPink Cluster reaches unexpected state state
+                "StatusPollster" -> "PF9 API": Get node_state
+                "StatusPollster" -> "StatusPollster": Handle ErrorScenarios(3)
+                "StatusPollster" -> "HPE OneSphere API": PATCH /rest/zones/{id} to mark cluster_state:Activated and node_state:Auhtorized
+                note left #Violet
+                     ErrorScenarios(3) will be dealt in separate story.
+                     We might do following based on feasability:
+                            - Pull enough nodes to bring cluster to active state
+                            - Or, mark cluster in errored state
+                     Need to see what PF9 supports underneath. For now, we will mark
+                     state as mentioned above. To be detailed further...
+                end note
+        else #LightPink Poller times out
+            "StatusPollster" -> "PF9 API": Get node_state
+            "StatusPollster" -> "StatusPollster": Handle ErrorScenarios(4)
+            "StatusPollster" -> "HPE OneSphere API": PATCH /rest/zones/{id} to mark cluster_state:Activated and node_state:Authorized
+             note left #Violet
+                ErrorScenarios(4) will be dealt in separate story.
+                The strategy will be influenced by:
+                    - our retry policy
+                    - pulling nodes out of cluster
+                    - walking through deactivating state so that it can come to authorized state
+                We might need to re-try.  To be detailed further...
+             end note
+        end
+    end
+end
+
+
+
+
+|||
+|||
+group #Aqua 7: Download kubeconfig
+    |||
+    Rollie -> "HPE OneSphere UI": Download kuberconfig
+    "HPE OneSphere UI" -> "HPE OneSphere API": Request to get kubeconfig
+    "HPE OneSphere API" -> K8sLCM: Call API to get kubeconfig
+    K8sLCM -> "PF9 API": Download kubeconfig
+    note left #Yellow
+        To be detailed further...
+    end note
+end
+
+
+newpage
+
+
+
+|||
+|||
+group #Lavender Step 8: Delete cluster
+    |||
+    Rollie -> "HPE OneSphere UI": Delete cluster (set of nodes provided)
+    "HPE OneSphere UI" -> "HPE OneSphere API": PATCH /rest/zone/{id} to cluster_state:DELETING
+    "HPE OneSphere API" -> K8sLCM: Request to delete cluster
+    K8sLCM -> "PF9 API": Call PF9 API to delete cluster
+    K8sLCM -> "StatusPollster":  Starts time-bound thread to add nodes to cluster
+    group Inside the thread
+        "StatusPollster" -> "PF9 API": Observe change in cluster_state
+        alt Cluster is deleted
+            "StatusPollster" -> "PF9 API": Get node_state
+            "StatusPollster" -> "HPE OneSphere API": PATCH /rest/zones/{id} to mark cluster_state:Deleted and node_state:Authorized
+        else #LightPink Cluster deletion failed
+            "StatusPollster" -> "PF9 API": Get node_state
+            "StatusPollster" -> "StatusPollster": Handle ErrorScenarios(5)
+            "StatusPollster" -> "HPE OneSphere API": PATCH /rest/zones/{id} to mark cluster_state:Activated and node_state:Authorized
+            note left #Violet
+                ErrorScenarios(5) will be dealt in separate story.
+            end note
+        else #LightPink Poller times out
+            "StatusPollster" -> "PF9 API": Get node_state
+            "StatusPollster" -> "StatusPollster": Handle ErrorScenarios(6)
+            "StatusPollster" -> "HPE OneSphere API": PATCH /rest/zones/{id} to mark cluster_state:Activated and node_state:Authorized
+             note left #Violet
+                 ErrorScenarios(6) will be dealt in separate story.
+             end note
+        end
+    end
+end
+
+
+
+|||
+|||
+group #Lavender Step 9: Delete zone
+    |||
+    Rollie -> "HPE OneSphere UI": Delete zone
+    "HPE OneSphere UI" -> "HPE OneSphere API": DELETE /rest/zone/{id}
+    note over Rollie
+        Requirement: cluster_state:Created|Undefined
+    end note
+    "HPE OneSphere API" -> K8sLCM: Get sanity check to do delete zone
+    K8sLCM -> K8sLCM:  Performs internal validation (if required cleanup)
+    note over Rollie
+       To be detailed further...
+    end note
+    "HPE OneSphere API" -> "HPE OneSphere API": DELETE  /rest/zones/{id}
+end
+@enduml

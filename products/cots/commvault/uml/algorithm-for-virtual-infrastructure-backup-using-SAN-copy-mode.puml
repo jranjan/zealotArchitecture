@@ -1,0 +1,60 @@
+@startuml
+
+@startuml
+skinparam backgroundColor #EEEBDC
+skinparam handwritten true
+
+skinparam sequence {
+	ArrowColor DeepSkyBlue
+	ActorBorderColor DeepSkyBlue
+	LifeLineBorderColor blue
+	LifeLineBackgroundColor #A9DCDF
+
+	ParticipantBorderColor DeepSkyBlue
+	ParticipantBackgroundColor DodgerBlue
+	ParticipantFontName Impact
+	ParticipantFontSize 17
+	ParticipantFontColor #A9DCDF
+
+	ActorBackgroundColor aqua
+	ActorFontColor DeepSkyBlue
+	ActorFontSize 17
+	ActorFontName Aapex
+}
+
+participant "VSA Proxy"
+participant vCenter
+participant Hypervisor
+participant VM
+participant MediaAgent
+
+note over "VSA Proxy"
+    SAN copy transport mode is only possible
+    if VSA proxy is deployed on physical server
+    along with MediaAgent. It is more efficient
+    backup transport mode without needing to
+    transfer data over LAN.
+end note
+
+
+"VSA Proxy" -> vCenter: Locate VM on ESXi host
+"VSA Proxy" -> Hypervisor: Initiate snapshot
+Hypervisor -> VM: Quiesce VM
+Hypervisor -> Hypervisor: Conducts a software snapshot on primary storage
+Hypervisor --> "VSA Proxy":
+"VSA Proxy" -> "Primary storage": Create snapshot copy
+"VSA Proxy" -> MediaAgent: Mount snapshot copy to media server
+note over "VSA Proxy"
+    Did you notice creation of snapshot copy
+    and it getting mounted - a core difference
+    from traditional backup. Did you also notice
+    that no data is being trasferred over wire
+    (LAN) to send required data to MediaAgent.
+end note
+"VSA Proxy" -> MediaAgent: Request to do backup
+MediaAgent -> BackupStorage: Stores backup data (in backup storage)
+MediaAgent --> "VSA Proxy"
+"VSA Proxy" -> "VSA Proxy": Unmount snapshot from media server
+
+
+@enduml

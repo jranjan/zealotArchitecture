@@ -1,0 +1,108 @@
+@startuml
+
+actor Rollie
+
+participant "HPE OneSphere API"
+participant SQS
+participant "K8s-LCM"
+participant SNS
+participant "K8s-LCM-Mule"
+participant "K8s-LCM-Mule-AsynchEngine"
+
+
+== Pre-requisite ==
+
+note over "HPE OneSphere API"
+   We are going to leverage SNS and SQS for asynchronous
+   message handling. SNS is used to push message to API
+   queue. API can process the message from the queue
+   and delete it as per their own leisure.
+end note
+
+"HPE OneSphere API" -> SQS: Create a SQS queue
+"K8s-LCM" -> SNS: Create a SNS topic
+"HPE OneSphere API" -> SNS: Subscribe to SQS queue to SNS topic
+
+
+== Activation of processing asynchronous request ==
+Rollie -> "HPE OneSphere API": Requests asynchronous operation
+"HPE OneSphere API" -> "K8s-LCM": Routes request
+"K8s-LCM" -> "K8s-LCM": Validates the request
+alt #LightGreen Request is accepted
+    "K8s-LCM" -> "K8s-LCM": Persist request in database
+    "K8s-LCM" -> "K8s-LCM": Cooks tracking_id based on request id
+    "K8s-LCM" -> "K8s-LCM-Mule": Sends message to mule
+    "K8s-LCM" -> "K8s-LCM-Mule-AsynchEngine": Starts the thread
+    "K8s-LCM" -> "HPE OneSphere API": sends response with tracking_id
+    "HPE OneSphere API" --> Rollie:
+else #LavenderBlush
+    "K8s-LCM" -> "HPE OneSphere API": sends 400 response
+    "HPE OneSphere API" --> Rollie:
+end
+
+
+|||
+|||
+|||
+
+== Rollie checks status of tracking_id ==
+
+
+Rollie -> "HPE OneSphere API": Get status
+"HPE OneSphere API" -> "K8s-LCM": Get status
+"K8s-LCM" -> "K8s-LCM": Looks the database
+"K8s-LCM" -> "K8s-LCM": Cooks the <response>
+"K8s-LCM" --> "HPE OneSphere API": sends the response
+"HPE OneSphere API" --> Rollie:
+deactivate Rollie
+note over Rollie
+    <response>:
+
+    As of now response will be minimal. In long run, it should have
+    details of all time stamps like:
+        1) createdAt
+        2) flight time
+        3) total time spent in processing
+        4) estimated time left
+
+    For (4), we will do not it know. We need to design it as part of
+    separate story but it is very important to do so. This will be based
+    on empirical data we get as part of repeated test run. I need to be
+    more explict which I will do when time comes.
+end note
+
+|||
+|||
+|||
+
+== System updates asynchronous operation result to API==
+
+"K8s-LCM-Mule-AsynchEngine" -> "K8s-LCM-Mule-AsynchEngine": runs state machine
+"K8s-LCM-Mule-AsynchEngine" -> "K8s-LCM-Mule-AsynchEngine": Updates database as intended
+alt Request completed
+    "K8s-LCM-Mule-AsynchEngine" -> "K8s-LCM-Mule-AsynchEngine": Cooks good response
+else Request failed
+    "K8s-LCM-Mule-AsynchEngine" -> "K8s-LCM-Mule-AsynchEngine": Cooks bad response
+end
+"K8s-LCM-Mule-AsynchEngine" -> "SNS": Publish message to the SNS topic.
+SNS -> "HPE OneSphere API": Push the message to API queue
+deactivate "K8s-LCM-Mule-AsynchEngine"
+"HPE OneSphere API" -> SQS: Picks the message from queue
+"HPE OneSphere API" -> "HPE OneSphere API": process the queue items
+"HPE OneSphere API" -> "HPE OneSphere API": <update result>
+"HPE OneSphere API" -> SQS: delete the queue item
+note over "HPE OneSphere API"
+     <update result>:
+
+     it can be one of the following:
+        1) updating API database
+        2) raising alert, if required
+        3) notifying UI asynchronously, if there is some mechanism to do
+
+     The decision based on how we want to evolve things! In short term, we will live
+     with (1).
+end note
+
+
+
+@enduml

@@ -1,0 +1,210 @@
+@startuml
+actor operator
+participant "hellfire-ism"
+participant "build_system.yml"
+participant "hellfire-ism"
+participant "seed-node"
+participant vCenter
+participant oneview
+
+operator->"hellfire-ism": deploy hellfire system
+
+note left
+    The purpose of diagram is to showcase the detail
+    at playbook level happening inside ISM. It does
+    not aim to address invoker of ISM API or story
+    around it. So, you will find reference of
+    playbooks and set of questions related to low
+    level design, build and integration with other
+    systems.
+end note
+
+group Perform deployment activities
+
+    "hellfire-ism"->"build_system.yml": Run it
+    "build_system.yml"->"build_system.yml": initialize global settings
+
+    note left #Aqua
+        Read limits like minimum and maximum node requirement,
+        maximum no of cluster etc. Also, read log location,
+        ism host name, certificates etc
+    end note
+
+    "build_system.yml"->"hellfire-ism": call get_infrastructure_settings()
+    note left #Red
+        is it correct?
+
+        where is get_infrastructure_settings() running?
+        so far, we have not done anything apart from reading
+        the variables. Looks like that we do run from
+        sd card. Is it true? where is ISM running?
+    end note
+
+    "build_system.yml"->"build_system.yml": read "seed-node" iLO details. call Ilo_Details()
+    note left #Red
+        which service did provide iLO details? where is it running?
+        Or, is it like a shell program?
+    end note
+    "build_system.yml"->"seed-node": setup ntp
+    note left #Aqua
+        call get_nic_inventory()
+        call seednode_ntp_config()
+    end note
+    "build_system.yml"->"build_system.yml": mount SD card
+    "build_system.yml"->"build_system.yml": copy files
+    note left
+        All bits needed to deploy are copied.
+
+        See list of bits:
+
+            esxi.iso (multiple version :-))
+            svmc.ova
+            vsa.zip // vsa file
+            spp.iso // waht is it?
+            HellfireVM.ova
+            HP_OneView_VM.ova
+
+        Did I miss any? :-)
+    end note
+    "build_system.yml"->"build_system.yml": unmount SD card
+    "build_system.yml"->"build_system.yml": get hypervisor type
+    "build_system.yml"->"build_system.yml": call customize_esxi_iso()
+
+    note left #Red
+        What is custom ISO creation in case of vSphere?
+        why do we do that?
+    end note
+
+    "build_system.yml"->"build_system.yml": call oneview_fts()
+    note left #Aqua
+        Here, we do deploy full oneview setup and collect
+        various details.
+    end note
+
+    "build_system.yml"->oneview: login
+    note left #Aqua
+        when did we create oneview VM? we just copied files.
+        No, we did. See above step.
+    end note
+    "build_system.yml"->"build_system.yml": save oneview auth token
+
+    "build_system.yml"->"build_system.yml": call get_unmanaged_servers()
+    "build_system.yml"->"hellfire-ism": get list of unmanaged servers
+    "build_system.yml"->"build_system.yml": get iLO auth token. call ilo_login_creds()
+    "build_system.yml"->"build_system.yml": import discovered nodes
+    note left
+        I see that it is async call. How do we track its completion?
+    end note
+
+    note left #Red
+        How do we retrieve list of unmanaged servers? Is it using iLO?
+        Do we use same token for all discovered nodes?
+        How will we discover synergy hardwre?
+    end note
+
+    "build_system.yml"->"seed-node": call add_networks()
+    note left #Aqua
+        We do add all networks! :-)
+    end note
+    "build_system.yml"->"seed-node": get management network using generic playbook
+
+    "build_system.yml"->oneview: add NTP server
+    note left #Red
+        Do we expect external ntp server to be deployed?
+        I am not saying that it is wrong. It is just that
+        I want to confirm. Looks like, we do add to
+        oneview. Is it correct?
+    end note
+
+    "build_system.yml"->"build_system.yml": call get_unique_server_hardware_types()
+    note left #Red
+        Here, we do create server profile template. We do so for all
+        different server types. :-) I doubt that I got this piece,
+        clearly.
+    end note
+    "build_system.yml"->oneview: upload firmware bundle. call upload_firmware_bundle()
+    "build_system.yml"->oneview: add server profile template
+
+    note left #Red
+        where did we get server profile template?
+        was it part of bits?
+    end note
+
+    "build_system.yml"->"build_system.yml": call get_nic_inventory()
+    "build_system.yml"->oneview: call get_ip_from_ip_pool()
+    note left #Red
+        Do we call to oneview?
+        I see description as 'Allocate VMotion and Management IP's from IP_POOLs.'
+        Can I get more details?
+    end note
+
+    "build_system.yml"->"build_system.yml": assign IP to seed-node
+    "build_system.yml"->"build_system.yml": call get_infrastructure_credential_by_uri()
+
+    "build_system.yml"->vCenter: connect. call visdk_connect()
+    "build_system.yml"->vCenter: add seed-node to vCenter. call add_host_to_vc()
+
+    "build_system.yml"->"seed-node": deploy svmc
+    "build_system.yml"->oneview: create hypervisor manager. call create_hypervisor_manager()
+    "build_system.yml"->oneview: create hypervisor cluster profile. call create_cluster_profile()
+    "build_system.yml"->oneview: validate hypervisor cluster profile
+    note left #Red
+        why do we do validation later?
+    end note
+
+    "build_system.yml"->vCenter: enable EVC on cluster
+    note left #Red
+        what is EVC?
+        whom do we ask to apply?
+    end note
+
+    "build_system.yml"->oneview: provision cluster profile
+    "build_system.yml"->"build_system.yml": reconfigure vMotion network
+    "build_system.yml"->"build_system.yml": unzip VSA server bits
+    note left
+        where is file server?
+    end note
+    "build_system.yml"->"build_system.yml": get VSA credentials
+    note left #Red
+        where did wet VSA credentials form?
+        how can we change it, if required?
+        can we change it even after deployment of system?
+    end note
+
+    "build_system.yml"->oneview: create SDI system profile
+    "build_system.yml"->oneview: create vsa cluster. call import_vsa()
+    "build_system.yml"->oneview: validate SDI system profile
+    note left #Red
+        what is SDI system profile comprised of?
+        does it contain disk details? which raid type etc was
+        created? which volumes are considered and which one
+        not? how are these decisions being taken?
+        what is name of cluster picked?
+    end note
+
+    "build_system.yml"->"hellfire-ism": store hypervisor cluster and host ISM. call store_hypervisor_inventory()
+    "build_system.yml"->"hellfire-ism": store storage pool. call store_pool_inventory()
+
+    note left
+        where do we store?
+        is storage pool same as vsa cluster created above?
+    end note
+
+    "build_system.yml"->oneview: provision vsa volumes
+    "build_system.yml"->"hellfire-ism": store volume details
+    note left
+        what volume details do we store and where?
+        why do we do this?
+    end note
+
+    "build_system.yml"->"build_system.yml": migrate control plane VM to cluster
+    "build_system.yml"->"build_system.yml": reconfigure VM network
+
+    "build_system.yml"->"seed-node": power off
+    "build_system.yml"->"build_system.yml": delete seed-node user
+    "build_system.yml"->"build_system.yml": expand cluster
+    "build_system.yml"->"build_system.yml": disconnect vCenter
+    "build_system.yml"->"build_system.yml": logout from onewview
+end
+
+@enduml

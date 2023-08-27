@@ -1,0 +1,40 @@
+@startuml
+
+main->util: utils.initialize_logging('create')
+
+loop retry X times:
+    alt snapshot_id NOT provided
+        main->main: detect_snapshot_id('distance')
+        activate main #FFBBBB
+        main->main: get('customer_name', 'account_id', 'service_name')
+        main->boto3: boto3.client()
+        main->utils: utils.do_aws_get('snapshots')
+        main->main: _pick_snapshot()
+    end
+    deactivate main
+
+    main->main: set_snapshot_id('snapshot_id')
+
+    main->main: do_restore(snapshot_id)
+    activate main #FFBBBB
+    main->kubernetes: _get_pvc()
+    alt WIPE_CLEAN != "TRUE":
+        main->main: _create_ebs('old_snapshot_id')
+        main->kubernetes: create_pv(vol_id, old_pv, snapshot_id)
+    end
+    main->main: bring service down
+    main->main: _delete_pvc()
+    main->main: _create_pvc()
+    main->main: _bring_deployment_down()
+    main->main: _create_deployment()
+    deactivate main
+
+    main->util: check_recover_success()
+    activate main #FFBBBB
+    main->main:  _check_pod_current_health(pod)
+    main->main:  _check_pod_event_history(pod)
+    deactivate main
+
+end
+
+@enduml

@@ -1,0 +1,23 @@
+@startuml
+
+class Metrics
+
+class APIMetrics
+note left
+    Implements following metrics:
+        - request_count_total
+        - request_time_total
+end note
+
+class APPMetrics
+note left
+    Implements following metrics:
+        - app_event_count_total
+        - post_deploy_event_count_total
+end note
+
+APIMetrics  <|-- Metrics: extends
+APPMetrics <|-- Metrics: extends
+
+
+@enduml

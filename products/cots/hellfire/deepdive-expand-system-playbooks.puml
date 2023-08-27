@@ -1,0 +1,45 @@
+@startuml
+
+actor operator
+participant "expand_system.yml"
+participant "hellfire-ism"
+participant oneview
+
+operator->"hellfire-ism": expand system
+"hellfire-ism"->"expand_system.yml": run it
+"expand_system.yml"->"expand_system.yml": load config variables
+"expand_system.yml"->"expand_system.yml": call get_infrastructure_environment()
+"expand_system.yml"->"expand_system.yml": call get_infrastructure_credential_by_uri()
+"expand_system.yml"->oneview: login
+"expand_system.yml"->"expand_system.yml": save oneview auth token
+"expand_system.yml"->oneview: call get_inventory_networks_from_oneview()
+"expand_system.yml"->"expand_system.yml": get management network from above call
+"expand_system.yml"->"expand_system.yml": call get_hypervisor_manager()
+"expand_system.yml"->"hellfire-ism": call list of unmanaged servers. call get_unmanaged_servers()
+
+"expand_system.yml"->oneview: get imported servers
+"expand_system.yml"->"expand_system.yml": call ilo_login_oneview()
+"expand_system.yml"->"expand_system.yml": call get_infrastructure_settings()
+"expand_system.yml"->"expand_system.yml": import discovered nodes
+"expand_system.yml"->"expand_system.yml": call get_unique_server_hardware_types() to create servier profile template
+
+"expand_system.yml"->"expand_system.yml": validate server and cluster association
+note left
+    It is more like checking whether minimum or maximum
+    criteria are not violated.
+end note
+
+"expand_system.yml"->oneview: expand hypervisor cluster. call expand_cluster_profile()
+"expand_system.yml"->oneview: validate cluster profile for failures
+"expand_system.yml"->oneview: provision hypervisor profiles
+
+"expand_system.yml"->"hellfire-ism": call update_hypervisor_inventory()
+"expand_system.yml"->oneview: call expand_sdi_system_profile()
+"expand_system.yml"->oneview: call validate_sdi_system_profile()
+
+"expand_system.yml"->"hellfire-ism": update storage pool inventory
+"expand_system.yml"->oneview: call provision_volumes()
+"expand_system.yml"->"hellfire-ism": update volume information
+"expand_system.yml"->oneview: call configure_cluster_profile_storage()
+
+@enduml

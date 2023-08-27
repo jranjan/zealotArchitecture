@@ -1,0 +1,93 @@
+@startuml
+
+@startuml
+skinparam backgroundColor #EEEBDC
+skinparam handwritten true
+
+skinparam sequence {
+	ArrowColor DeepSkyBlue
+	ActorBorderColor DeepSkyBlue
+	LifeLineBorderColor blue
+	LifeLineBackgroundColor #A9DCDF
+
+	ParticipantBorderColor DeepSkyBlue
+	ParticipantBackgroundColor DodgerBlue
+	ParticipantFontName Impact
+	ParticipantFontSize 17
+	ParticipantFontColor #A9DCDF
+
+	ActorBackgroundColor aqua
+	ActorFontColor DeepSkyBlue
+	ActorFontSize 17
+	ActorFontName Aapex
+}
+
+participant Application
+participant Host
+participant Node_1_3PAR_ASIC
+participant Node_1_Cache
+participant Node_2_3PAR_ASIC
+participant Node_2_Cache
+participant PD
+
+group Application write
+    Application -> Host: write 90 blocks starting at 2000
+    Host -> Node_1_3PAR_ASIC: Receives the request
+    Node_1_3PAR_ASIC -> Node_1_3PAR_ASIC: Perform parity calculation
+    Node_1_3PAR_ASIC -> Node_1_Cache: Perform cache write
+    Node_1_3PAR_ASIC -> Node_2_3PAR_ASIC: Request to duplicate cache write
+    Node_2_3PAR_ASIC -> Node_2_3PAR_ASIC: Perform parity calculation
+    Node_2_3PAR_ASIC -> Node_2_Cache: Perform cache write
+    note over Node_1_3PAR_ASIC
+        It is worth to note that cache mirror
+        operation of data is not performed using
+        I/O bus but over high speed wire connecting
+        controllers.
+    end note
+    Node_1_3PAR_ASIC --> Host: Send write acknowledgement
+    Host --> Application: Send write acknowledgement
+end
+
+
+|||
+|||
+
+note over Node_1_3PAR_ASIC
+    LD is owned by two Node. Let us
+    assume that Node_2 was owning the PD
+    at the time request was received. Although
+    it was received by Node_1, rest of
+    the flow of media write is performed
+    by Node_2.
+end note
+
+group Media write
+   note over Node_2_3PAR_ASIC
+        When does data gets flashed to
+        physical drivers? What will
+        happen if something goes wrong
+        before we do perform physical write?
+
+        The deferred approach of cache write
+        gives us a great opportunity to
+        create a high performany system and solve
+        the following aspects:
+            • Merging multiple writes to the same
+              blocks so that many drive writes are
+              eliminated.
+            • Merging multiple small writes into single
+              larger drive writes so that the operation
+              is more efficient
+            • Merging multiple small writes to a RAID 5
+              or RAID MP LD into full-stripe writes so that
+              it is not necessary to read the old data for
+              the stripe from the drives
+            • Delaying the write operation so that it
+              can be scheduled at a more suitable time
+   end note
+   Node_2_3PAR_ASIC -> PD_1: Perform write
+   Node_2_3PAR_ASIC -> PD_2: Perform write
+end
+
+
+@enduml

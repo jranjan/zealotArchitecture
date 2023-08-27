@@ -1,0 +1,115 @@
+@startuml
+
+actor system
+participant "hellfire-ism"
+participant "oneview-sdirm"
+participant "oneview-strm"
+participant "oneview-clrm"
+
+
+
+"system"->"hellfire-ism": Create VSA cluster
+note left
+    This diagram captures interaction of storage aspect for
+    NCS VMware stack. It includes following aspects:
+        - VSA deployment
+        - creation of storage cluster
+        - creation of VSA volumes (count and size)
+        - presneting volume to ESXi hosts
+        - creation of VMDK datastore
+
+    It does not cover flex up/down aspect of VSA cluster (will
+    be addressed separately). The content is based on some
+    assumptions detailed below.
+
+    Disclaimer:
+
+    The diagram is drawn with a understanding that Management VM
+    (aka MVM) of Hellfire will act like an LCM which will provide
+    following components: API, ILM and ISM. The workflow will
+    exercise (via some path)  ISM code to invoke storage cluster
+    creation and configuration steps. So, the system (shown as
+    actor) is just a represenation of invoker here.
+end note
+
+
+||150||
+
+group Activate storage cluster using Hellfire as system
+   note right
+    At this point of invocation of cluster creation
+    workflow, it is assume that the following
+    pre-requisites are fullfilled:
+
+        1. vsa-lcm is up and running
+        2. vsa-lcm can access hellfire-ism and its
+           dependent components.
+        3. vCenter cluster is created (dependency on
+           compute activation)
+        4. iSCSI network is created and all ESXi hosts
+           are connected to iSCSI network (dependency
+           on underlay network creation)
+        5. All ESXi hosts are accessible using LCM
+           (management) network for all vsa cluster
+           oepration(s).
+   end note
+
+   group Create storage cluster
+        "hellfire-ism"->"oneview-sdirm": Create VSA cluster
+
+        note left #Aqua
+            Clarity require on: number of disks configured,
+            adoptive optimization, hardware raid type etc?
+            Also, can we start with two node VSA cluster?
+        end note
+
+        loop for all nodes
+            "oneview-sdirm"->"oneview-sdirm": Configure VSA network
+            "oneview-sdirm"->"oneview-sdirm": Configure disk(s)
+            "oneview-sdirm"->"oneview-sdirm": Deploy VSA VM
+        end
+
+        "oneview-sdirm"->"oneview-sdirm": Create VSA management group
+        "oneview-sdirm"->"oneview-sdirm": Add VSA(s) to cluster
+   end note
+
+   |||
+
+   group Present iSCSI volumes to ESXi hosts
+        "hellfire-ism"->"oneview-strm": Create iSCSI volume(s)
+        loop for all nodes
+            "oneview-strm"->"oneview-strm": Attach iSCSI volume to all hosts
+        end
+   end
+
+   "hellfire-ism"->"oneview-clrm": Create VMDK datastore
+
+   |||
+
+   group Expand storage cluster at bootstrap time (applicable only if required)
+        "hellfire-ism"->"oneview-sdirm": Add one more node to storage cluster
+        "oneview-sdirm"->"oneview-sdirm": Configure VSA network
+        "oneview-sdirm"->"oneview-sdirm": Configure VSA disk(s)
+        "oneview-sdirm"->"oneview-sdirm": Deploy VSA
+        group Present iSCSI volumes to ESXi hosts
+            "hellfire-ism"->"oneview-strm": Create iSCSI VSA volume(s)
+             note left #Aqua
+                Clarity required on volume count and its size.
+             end note
+
+             loop for all nodes
+                 "oneview-strm"->"oneview-strm": Attach iSCSI volume to all hosts
+             end
+        end
+
+        "hellfire-ism"->"oneview-clrm": Resize VMDK datastore
+        note left #Aqua
+            Clarity required on whether we really
+            do need to make a resize call or not?
+        end note
+   end
+end
+
+
+
+@enduml

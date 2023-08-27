@@ -1,0 +1,53 @@
+@startuml
+
+@startuml
+skinparam backgroundColor #EEEBDC
+skinparam handwritten true
+
+skinparam sequence {
+	ArrowColor DeepSkyBlue
+	ActorBorderColor DeepSkyBlue
+	LifeLineBorderColor blue
+	LifeLineBackgroundColor #A9DCDF
+
+	ParticipantBorderColor DeepSkyBlue
+	ParticipantBackgroundColor DodgerBlue
+	ParticipantFontName Impact
+	ParticipantFontSize 17
+	ParticipantFontColor #A9DCDF
+
+	ActorBackgroundColor aqua
+	ActorFontColor DeepSkyBlue
+	ActorFontSize 17
+	ActorFontName Aapex
+}
+
+participant "VSA Proxy"
+participant vCenter
+participant Hypervisor
+participant VM
+participant MediaAgent
+
+
+"VSA Proxy" -> vCenter: Locate VM on ESXi host
+"VSA Proxy" -> Hypervisor: Initiate snapshot
+Hypervisor -> VM: Quiesce VM
+Hypervisor -> Hypervisor: Conducts a software snapshot
+Hypervisor -> "VSA Proxy": Send metadata
+"VSA Proxy" -> MediaAgent: Transfer the data over LAN to Media agent
+note over "VSA Proxy"
+    Did you notice that data is being copied from
+    ESXi host to MediaAgent over wire (LAN) unlike
+    IntelliSnap technology.
+end note
+MediaAgent -> BackupStorage: Transfer the data over FC/iSCSI
+opt over "VSA Proxy"
+    MediaAgent -> MediaAgent: Prepares index cache
+    MediaAgent -> ContentStore: Index are stored in library
+end
+MediaAgent --> "VSA Proxy"
+"VSA Proxy" -> Hypervisor: Deletes snapshot
+
+
+
+@enduml
