@@ -44,7 +44,7 @@ In simple words, it's essential to plan things out carefully before diving into 
 - Step 6: **_Define system interaction_**
 - Step 7: **_High-level Design_**
 - Step 8: **_Operability and Observability_**
-- Step 9: **_ Enhancing Efficiency, Building Resiliency, and Protecting Digital Assets_**
+- Step 9: **_Enhancing Efficiency, Building Resiliency, and Protecting Digital Assets_**
 
 
 After iterating through steps (1)-(9), repeat the process to establish a transition architecture. Transition architecture is crucial because of the following real-life truths:
